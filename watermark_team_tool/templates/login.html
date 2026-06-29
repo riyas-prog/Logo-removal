@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watermark Removal — Team Access</title>
+<style>
+  :root {
+    --bg: #0e1210;
+    --panel: #161b18;
+    --line: #2a3330;
+    --text: #e8ece9;
+    --muted: #8a9590;
+    --accent: #5eead4;
+    --accent-dim: #2c5a52;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(94,234,212,0.04), transparent 40%),
+      radial-gradient(circle at 80% 80%, rgba(94,234,212,0.03), transparent 40%);
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    padding: 40px 36px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+    margin: 0 0 28px;
+    letter-spacing: -0.01em;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-family: var(--mono);
+  }
+  input[type="password"] {
+    width: 100%;
+    padding: 12px 14px;
+    background: #0a0d0b;
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: var(--sans);
+    margin-bottom: 20px;
+  }
+  input[type="password"]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  button {
+    width: 100%;
+    padding: 13px;
+    background: var(--accent);
+    color: #06231c;
+    border: none;
+    border-radius: 3px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+  }
+  button:hover { background: #7ff3df; }
+  .error {
+    background: rgba(239,68,68,0.1);
+    border: 1px solid rgba(239,68,68,0.3);
+    color: #fca5a5;
+    font-size: 13px;
+    padding: 10px 12px;
+    border-radius: 3px;
+    margin-bottom: 20px;
+    font-family: var(--mono);
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <p class="eyebrow">Internal tool</p>
+    <h1>Watermark Removal</h1>
+    {% if error %}
+      <div class="error">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+      <label for="password">Team password</label>
+      <input type="password" id="password" name="password" autofocus required>
+      <button type="submit">Enter</button>
+    </form>
+  </div>
+</body>
+</html>
