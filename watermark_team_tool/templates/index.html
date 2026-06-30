@@ -323,11 +323,21 @@ function renderJob(job, isTemp) {
       <div class="job-name">${escapeHtml(job.original_filename || '')}</div>
       <div class="job-meta">${job.status === 'failed' ? escapeHtml(job.error || 'Something went wrong') : (rate + methodBadge(job.report))}</div>
     </div>
-    <div class="job-status ${statusClass}">${statusLabel(job.status)}</div>
-    ${job.status === 'done' ? `<a class="download-btn" href="/download/${job.id}">Download</a>` : ''}
-  `;
-}
+<div class="job-status ${statusClass}">${statusLabel(job.status)}</div>
+${job.status === 'done' ? `<a href="/download/${job.id}" class="download-btn" data-job="${job.id}">Download</a>` : ''}
+`;}
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.download-btn');
+    if (!btn) return;
 
+    const jobId = btn.dataset.job;
+
+    setTimeout(() => {
+        fetch(`/cleanup/${jobId}`, {
+            method: 'POST'
+        }).catch(console.error);
+    }, 30000);
+});
 function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
