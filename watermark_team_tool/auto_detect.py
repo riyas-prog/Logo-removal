@@ -116,11 +116,11 @@ def _match_logo_local(frame_gray, logo_gray, scales):
 
 def detect_static_region(
     video_path,
-    n_samples=40,
-    variance_threshold=12.0,
-    min_area_frac=0.0005,
-    max_area_frac=0.06,
-    border_margin_frac=0.0,
+    n_samples=120,
+    variance_threshold=22.0,
+    min_area_frac=0.0002,
+    max_area_frac=0.15,
+    border_margin_frac=0.20,
     log=print,
 ):
     """

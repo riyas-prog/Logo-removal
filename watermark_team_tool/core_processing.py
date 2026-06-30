@@ -54,23 +54,77 @@ def load_logo(logo_path: str):
 
 
 def match_logo(frame_gray, logo_gray, scales):
-    best = None  # (score, top_left, (w, h))
+    """
+    Improved logo matcher:
+    - Searches many scales
+    - Uses grayscale matching
+    - Uses edge matching
+    - Keeps whichever score is strongest
+    """
+
+    best = None
     fh, fw = frame_gray.shape[:2]
+
+    # Edge version of frame
+    frame_edge = cv2.Canny(frame_gray, 80, 160)
+
     for scale in scales:
+
         lw = int(logo_gray.shape[1] * scale)
         lh = int(logo_gray.shape[0] * scale)
-        if lw < 8 or lh < 8 or lw > fw or lh > fh:
+
+        if lw < 8 or lh < 8:
             continue
-        resized = cv2.resize(logo_gray, (lw, lh), interpolation=cv2.INTER_AREA)
-        result = cv2.matchTemplate(frame_gray, resized, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
-        if best is None or max_val > best[0]:
-            best = (max_val, max_loc, (lw, lh))
+
+        if lw > fw or lh > fh:
+            continue
+
+        resized = cv2.resize(
+            logo_gray,
+            (lw, lh),
+            interpolation=cv2.INTER_AREA,
+        )
+
+        # --------------------------
+        # Grayscale template match
+        # --------------------------
+        result_gray = cv2.matchTemplate(
+            frame_gray,
+            resized,
+            cv2.TM_CCOEFF_NORMED,
+        )
+
+        _, gray_score, _, gray_loc = cv2.minMaxLoc(result_gray)
+
+        # --------------------------
+        # Edge template match
+        # --------------------------
+        logo_edge = cv2.Canny(resized, 80, 160)
+
+        result_edge = cv2.matchTemplate(
+            frame_edge,
+            logo_edge,
+            cv2.TM_CCOEFF_NORMED,
+        )
+
+        _, edge_score, _, edge_loc = cv2.minMaxLoc(result_edge)
+
+        # Keep the stronger result
+        if edge_score > gray_score:
+            score = edge_score
+            loc = edge_loc
+        else:
+            score = gray_score
+            loc = gray_loc
+
+        if best is None or score > best[0]:
+            best = (score, loc, (lw, lh))
+
     if best is None:
         return None
+
     score, top_left, size = best
     return top_left, size, score
-
 
 def build_mask(frame_shape, top_left, size, padding):
     h, w = frame_shape[:2]
@@ -133,10 +187,27 @@ def process_video(
     preview=False,
     padding=6,
     threshold=0.55,
-    scales=(0.5, 0.75, 1.0, 1.25, 1.5),
-    sample_every=5,
-    inpaint_radius=4,
-    inpaint_method="telea",
+       scales=(
+    0.30,
+    0.40,
+    0.50,
+    0.60,
+    0.70,
+    0.80,
+    0.90,
+    1.00,
+    1.10,
+    1.20,
+    1.30,
+    1.40,
+    1.50,
+    1.60,
+    1.80,
+    2.00,
+),
+sample_every=5,
+inpaint_radius=4,
+inpaint_method="telea",
     progress_every=60,
     auto_detect=False,
     auto_detect_samples=40,
@@ -144,7 +215,7 @@ def process_video(
     locked_position=False,
     locked_position_samples=25,
     fully_auto=False,
-    fully_auto_padding=14,
+    fully_auto_padding=22,
     log=print,
 ):
     """
@@ -216,11 +287,14 @@ def process_video(
     elif auto_detect:
         cap.release()  # detect_static_region opens its own capture
         fixed_bbox = detect_static_region(
-            input_path,
-            n_samples=auto_detect_samples,
-            variance_threshold=auto_detect_variance_threshold,
-            log=log,
-        )
+    str(input_path),
+    n_samples=120,
+    variance_threshold=22.0,
+    min_area_frac=0.0002,
+    max_area_frac=0.15,
+    border_margin_frac=0.20,
+    log=log,
+)
         if fixed_bbox is None:
             raise RuntimeError(
                 "Auto-detect found no watermark-like static region in this video. "
