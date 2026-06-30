@@ -50,7 +50,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 
 TEAM_PASSWORD = os.environ.get("TEAM_TOOL_PASSWORD", "changeme")
-print("Loaded TEAM_PASSWORD =", repr(TEAM_PASSWORD))
+print("DEBUG TEAM_PASSWORD =", repr(TEAM_PASSWORD))
 
 # In-memory job store: {job_id: {filename, status, message, output_path, ...}}
 # Fine for a small team tool on a single process; swap for a real DB/queue
