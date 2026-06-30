@@ -98,16 +98,26 @@ def mux_audio(original_path, silent_video_path, output_path):
         return "no_audio_in_source"
 
     cmd = [
-        "ffmpeg", "-y",
-        "-i", str(silent_video_path),
-        "-i", str(original_path),
-        "-c:v", "copy",
-        "-c:a", "aac",
-        "-map", "0:v:0",
-        "-map", "1:a:0",
-        "-shortest",
-        str(output_path),
-    ]
+    "ffmpeg", "-y",
+    "-i", str(silent_video_path),
+    "-i", str(original_path),
+
+    "-map", "0:v:0",
+    "-map", "1:a:0?",
+
+    "-c:v", "libx264",
+    "-preset", "slow",
+    "-crf", "18",
+    "-pix_fmt", "yuv420p",
+
+    "-c:a", "aac",
+    "-b:a", "192k",
+
+    "-movflags", "+faststart",
+    "-shortest",
+
+    str(output_path),
+]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         return f"audio_mux_failed: {result.stderr[-500:]}"
