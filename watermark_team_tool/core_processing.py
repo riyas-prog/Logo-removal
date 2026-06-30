@@ -36,7 +36,7 @@ import cv2
 import numpy as np
 
 from auto_detect import detect_static_region, bbox_to_match_format, detect_locked_position
-
+from logo_detector_v2 import detect_best_region
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 
 
@@ -255,20 +255,36 @@ inpaint_method="telea",
     detect_confidence = None
 
     if fully_auto:
-        from auto_locked_detect import detect_watermark_no_crop
+        print("ENTERED FULLY_AUTO")
+        log("STEP 1: fully_auto entered")
+        ret, first_frame = cap.read()
+        log("STEP 2: first frame read")
+
+        if not ret:
+            raise RuntimeError("Could not read first frame.")
+
+        score, name, x, y, w, h = detect_best_region(first_frame)
+        print("=" * 60)
+        print("V2 DETECTED")
+        print(f"Score : {score}")
+        print(f"Name  : {name}")
+        print(f"BBox  : {(x, y, w, h)}")
+        print("=" * 60)
+        print(f"[V2] score={score:.2f}")
+        print(f"[V2] bbox={(x, y, w, h)}")
+
+        log(f"STEP 3: detector finished: {(x, y, w, h)}")
+
+        fixed_bbox = (x, y, w, h)
+
+        detect_method = "logo_detector_v2"
+        detect_confidence = min(1.0, score / 1000.0)
+
+        log(f"  [V2] {name} score={score:.2f}")
+
+        padding = fully_auto_padding
+
         cap.release()
-        fixed_bbox, detect_method, detect_confidence = detect_watermark_no_crop(
-            input_path, log=log,
-        )
-        if fixed_bbox is None:
-            raise RuntimeError(
-                "Could not automatically find a watermark region in this video. "
-                "The watermark may not be in a fixed position, or may be too subtle "
-                "to detect reliably - manual logo crop mode would be needed instead."
-            )
-        log(f"  [fully-auto] watermark region: {fixed_bbox} via {detect_method} "
-            f"({detect_confidence:.0%} confidence)")
-        padding = fully_auto_padding  # auto-detected boxes can undershoot slightly; pad generously
         cap = cv2.VideoCapture(str(input_path))
     elif locked_position:
         if logo_path is None:
@@ -287,14 +303,14 @@ inpaint_method="telea",
     elif auto_detect:
         cap.release()  # detect_static_region opens its own capture
         fixed_bbox = detect_static_region(
-    str(input_path),
-    n_samples=120,
-    variance_threshold=22.0,
-    min_area_frac=0.0002,
-    max_area_frac=0.15,
-    border_margin_frac=0.20,
-    log=log,
-)
+            str(input_path),
+            n_samples=120,
+            variance_threshold=22.0,
+            min_area_frac=0.0002,
+            max_area_frac=0.15,
+            border_margin_frac=0.20,
+            log=log,
+        )
         if fixed_bbox is None:
             raise RuntimeError(
                 "Auto-detect found no watermark-like static region in this video. "
