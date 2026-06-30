@@ -88,7 +88,6 @@ def index():
 
 def _process_job(job_id, input_path, output_path):
     """Runs in a background thread; updates JOBS[job_id] as it progresses."""
-
     def log(msg):
         with JOBS_LOCK:
             if job_id in JOBS:
@@ -112,7 +111,19 @@ def _process_job(job_id, input_path, output_path):
                 "detect_confidence": report.get("detect_confidence"),
                 "detect_rate": report.get("detect_rate"),
                 "frames": report.get("frames"),
+                "audio": report.get("audio"),
             }
+            if report.get("audio") == "ffmpeg_not_found":
+                JOBS[job_id]["warning"] = (
+                    "Watermark removed successfully, but the output has no audio - "
+                    "ffmpeg isn't installed on this server. Install ffmpeg and "
+                    "reprocess to keep audio."
+                )
+            elif report.get("audio") not in ("ok", "no_audio_in_source"):
+                JOBS[job_id]["warning"] = (
+                    "Watermark removed successfully, but audio could not be added "
+                    "back to the output."
+                )
             JOBS[job_id]["output_path"] = str(output_path)
 
         # Delete uploaded file after successful processing
@@ -122,9 +133,106 @@ def _process_job(job_id, input_path, output_path):
         with JOBS_LOCK:
             JOBS[job_id]["status"] = "failed"
             JOBS[job_id]["error"] = str(e)
-
         log(f"[error] {e}")
         log(traceback.format_exc())
 
         # Delete uploaded file if processing failed
         Path(input_path).unlink(missing_ok=True)
+
+
+@app.route("/upload", methods=["POST"])
+def upload():
+    if not require_login():
+        return jsonify({"error": "Not authenticated"}), 401
+
+    files = request.files.getlist("videos")
+    if not files:
+        return jsonify({"error": "No files uploaded"}), 400
+
+    job_ids = []
+    for f in files:
+        if not f.filename:
+            continue
+        ext = Path(f.filename).suffix.lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            continue
+
+        job_id = uuid.uuid4().hex[:12]
+        safe_name = f"{job_id}{ext}"
+        input_path = UPLOAD_DIR / safe_name
+        output_path = OUTPUT_DIR / f"{job_id}_clean{ext}"
+
+        f.save(str(input_path))
+
+        with JOBS_LOCK:
+            JOBS[job_id] = {
+                "id": job_id,
+                "original_filename": f.filename,
+                "status": "queued",
+                "log": [],
+                "error": None,
+                "warning": None,
+                "report": None,
+                "output_path": None,
+                "created_at": time.time(),
+            }
+
+        thread = threading.Thread(
+            target=_process_job, args=(job_id, input_path, output_path), daemon=True
+        )
+        thread.start()
+        job_ids.append(job_id)
+
+    return jsonify({"job_ids": job_ids})
+
+
+@app.route("/status/<job_id>")
+def status(job_id):
+    if not require_login():
+        return jsonify({"error": "Not authenticated"}), 401
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            return jsonify({"error": "Unknown job"}), 404
+        return jsonify({
+            "id": job["id"],
+            "original_filename": job["original_filename"],
+            "status": job["status"],
+            "log": job["log"][-20:],  # last 20 lines is plenty for a progress view
+            "error": job["error"],
+            "warning": job.get("warning"),
+            "report": job["report"],
+        })
+
+
+@app.route("/download/<job_id>")
+def download(job_id):
+    if not require_login():
+        return redirect(url_for("login"))
+    with JOBS_LOCK:
+        job = JOBS.get(job_id)
+    if not job or job["status"] != "done" or not job["output_path"]:
+        return "Not ready", 404
+
+    original_stem = Path(job["original_filename"]).stem
+    ext = Path(job["output_path"]).suffix
+    download_name = f"{original_stem}_clean{ext}"
+    return send_file(job["output_path"], as_attachment=True, download_name=download_name)
+
+
+@app.route("/cleanup/<job_id>", methods=["POST"])
+def cleanup(job_id):
+    """Optional: delete a job's files once downloaded, to save disk space."""
+    if not require_login():
+        return jsonify({"error": "Not authenticated"}), 401
+    with JOBS_LOCK:
+        job = JOBS.pop(job_id, None)
+    if job and job.get("output_path"):
+        Path(job["output_path"]).unlink(missing_ok=True)
+    return jsonify({"ok": True})
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    app.run(host="0.0.0.0", port=port, debug=debug)
