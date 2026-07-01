@@ -2,7 +2,8 @@ import cv2
 import numpy as np
 print("LOADED:", __file__)
 def detect_best_region(frame):
-    
+    print("✅ V2 DETECTOR IS RUNNING")
+    h, w = frame.shape[:2]
     print("========== USING LOGO DETECTOR V2 ==========")
 
     h, w = frame.shape[:2]

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watermark Removal</title>
+<style>
+  :root {
+    --bg: #0e1210;
+    --panel: #161b18;
+    --panel-2: #111513;
+    --line: #2a3330;
+    --text: #e8ece9;
+    --muted: #8a9590;
+    --accent: #5eead4;
+    --accent-dim: #2c5a52;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px;
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  .brand .tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+  }
+  header a { color: var(--muted); font-size: 13px; text-decoration: none; }
+  header a:hover { color: var(--text); }
+
+  main {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  .dropzone {
+    border: 1.5px dashed var(--line);
+    border-radius: 6px;
+    padding: 56px 24px;
+    text-align: center;
+    background: var(--panel);
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+  }
+  .dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(94,234,212,0.04);
+  }
+  .dropzone .icon {
+    font-family: var(--mono);
+    font-size: 28px;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .dropzone h2 {
+    font-size: 16px;
+    margin: 0 0 6px;
+    font-weight: 600;
+  }
+  .dropzone p {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0;
+  }
+  .dropzone input[type="file"] { display: none; }
+
+  .how-it-works {
+    display: flex;
+    gap: 24px;
+    margin-top: 28px;
+    padding: 18px 20px;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--muted);
+    font-family: var(--mono);
+    line-height: 1.6;
+  }
+  .how-it-works div { flex: 1; }
+  .how-it-works .step-label { color: var(--accent); display: block; margin-bottom: 4px; }
+
+  .jobs {
+    margin-top: 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .job {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .job-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 4px;
+    background: var(--panel-2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .job-info { flex: 1; min-width: 0; }
+  .job-name {
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .job-meta {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+  .job-meta .method-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    margin-left: 6px;
+    font-size: 10.5px;
+  }
+  .method-badge.fast { background: rgba(94,234,212,0.12); color: var(--accent); }
+  .method-badge.deep { background: rgba(251,191,36,0.12); color: var(--amber); }
+
+  .job-status {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .status-queued { background: rgba(138,149,144,0.12); color: var(--muted); }
+  .status-processing { background: rgba(94,234,212,0.1); color: var(--accent); }
+  .status-done { background: rgba(94,234,212,0.18); color: var(--accent); }
+  .status-failed { background: rgba(248,113,113,0.12); color: var(--red); }
+
+  .download-btn {
+    flex-shrink: 0;
+    background: var(--accent);
+    color: #06231c;
+    border: none;
+    border-radius: 3px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .download-btn:hover { background: #7ff3df; }
+
+  .spinner {
+    width: 12px; height: 12px;
+    border: 2px solid rgba(94,234,212,0.25);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    animation: spin 0.7s linear infinite;
+    margin-right: 6px;
+    vertical-align: -1px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 40px 0;
+    font-family: var(--mono);
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Watermark Removal</h1>
+    <span class="tag">// internal tool</span>
+  </div>
+  <a href="/logout">Sign out</a>
+</header>
+
+<main>
+  <div class="dropzone" id="dropzone">
+    <div class="icon">↑</div>
+    <h2>Drop videos here, or click to browse</h2>
+    <p>Upload as many as you need — each one is processed and detected automatically.</p>
+    <input type="file" id="fileInput" multiple accept=".mp4,.mov,.avi,.mkv,.webm">
+  </div>
+
+  <div class="how-it-works">
+    <div><span class="step-label">01 — Upload</span>Drop in one or many clips.</div>
+    <div><span class="step-label">02 — Detect</span>Each video is scanned automatically for a fixed-position watermark — no cropping needed.</div>
+    <div><span class="step-label">03 — Download</span>Grab the cleaned file once it's ready.</div>
+  </div>
+
+  <div class="jobs" id="jobs">
+    <div class="empty-state" id="emptyState">No videos yet — upload something above to get started.</div>
+  </div>
+</main>
+
+<script>
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const jobsEl = document.getElementById('jobs');
+const emptyState = document.getElementById('emptyState');
+const pollers = {};
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) uploadFiles(fileInput.files);
+});
+
+function uploadFiles(files) {
+  const formData = new FormData();
+  for (const f of files) formData.append('videos', f);
+
+  // Optimistic placeholder rows while the upload itself is in flight
+  const tempIds = [];
+  for (const f of files) {
+    const tempId = 'pending-' + Math.random().toString(36).slice(2);
+    tempIds.push(tempId);
+    renderJob({ id: tempId, original_filename: f.name, status: 'queued', report: null }, true);
+  }
+
+  fetch('/upload', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+      tempIds.forEach(id => document.getElementById('row-' + id)?.remove());
+      if (data.error) { alert(data.error); return; }
+      data.job_ids.forEach(id => pollJob(id));
+    })
+    .catch(() => {
+      tempIds.forEach(id => document.getElementById('row-' + id)?.remove());
+      alert('Upload failed. Check your connection and try again.');
+    });
+}
+
+function pollJob(jobId) {
+  if (pollers[jobId]) return;
+  const tick = () => {
+    fetch('/status/' + jobId)
+      .then(r => r.json())
+      .then(job => {
+        renderJob(job, false);
+        if (job.status === 'done' || job.status === 'failed') {
+          clearInterval(pollers[jobId]);
+          delete pollers[jobId];
+        }
+      });
+  };
+  tick();
+  pollers[jobId] = setInterval(tick, 1500);
+}
+
+function methodBadge(report) {
+  if (!report || !report.detect_method) return '';
+  if (report.detect_method === 'static_variance') {
+    return '<span class="method-badge fast">fast scan</span>';
+  }
+  return '<span class="method-badge deep">deep scan</span>';
+}
+
+function statusLabel(status) {
+  if (status === 'queued') return 'Queued';
+  if (status === 'processing') return '<span class="spinner"></span>Processing';
+  if (status === 'done') return 'Done';
+  if (status === 'failed') return 'Failed';
+  return status;
+}
+
+function renderJob(job, isTemp) {
+  emptyState.style.display = 'none';
+  let row = document.getElementById('row-' + job.id);
+  if (!row) {
+    row = document.createElement('div');
+    row.className = 'job';
+    row.id = 'row-' + job.id;
+    jobsEl.prepend(row);
+  }
+
+  const statusClass = 'status-' + job.status;
+  const rate = job.report && job.report.detect_rate != null
+    ? Math.round(job.report.detect_rate * 100) + '% detected'
+    : '';
+
+  row.innerHTML = `
+    <div class="job-icon">${(job.original_filename || '').split('.').pop().toUpperCase().slice(0,4)}</div>
+    <div class="job-info">
+      <div class="job-name">${escapeHtml(job.original_filename || '')}</div>
+      <div class="job-meta">${job.status === 'failed' ? escapeHtml(job.error || 'Something went wrong') : (job.warning ? escapeHtml(job.warning) : (rate + methodBadge(job.report)))}</div>
+    </div>
+    <div class="job-status ${statusClass}">${statusLabel(job.status)}</div>
+    ${job.status === 'done' ? `<a class="download-btn" href="/download/${job.id}">Download</a>` : ''}
+  `;
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
