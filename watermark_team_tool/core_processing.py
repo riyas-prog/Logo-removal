@@ -141,6 +141,41 @@ def build_mask(frame_shape, top_left, size, padding):
 
 
 def mux_audio(original_path, silent_video_path, output_path):
+
+    original_path = Path(original_path)
+    silent_video_path = Path(silent_video_path)
+    output_path = Path(output_path)
+
+    # --------------------------------------------------
+    # REMOVE ANY OLD / PARTIAL FINAL OUTPUT
+    # --------------------------------------------------
+
+    output_path.unlink(
+        missing_ok=True
+    )
+
+    # --------------------------------------------------
+    # VERIFY TEMP VIDEO EXISTS
+    # --------------------------------------------------
+
+    if not silent_video_path.exists():
+
+        raise RuntimeError(
+            f"Silent temporary video was not created: "
+            f"{silent_video_path}"
+        )
+
+    if silent_video_path.stat().st_size < 1000:
+
+        raise RuntimeError(
+            f"Silent temporary video is too small: "
+            f"{silent_video_path.stat().st_size} bytes"
+        )
+
+    # --------------------------------------------------
+    # CHECK WHETHER ORIGINAL VIDEO HAS AUDIO
+    # --------------------------------------------------
+
     probe = subprocess.run(
         [
             "ffprobe",
@@ -158,7 +193,14 @@ def mux_audio(original_path, silent_video_path, output_path):
         text=True,
     )
 
-    has_audio = probe.stdout.strip() != ""
+    has_audio = (
+        probe.returncode == 0 and
+        probe.stdout.strip() != ""
+    )
+
+    # --------------------------------------------------
+    # BUILD FFMPEG COMMAND
+    # --------------------------------------------------
 
     cmd = [
         "ffmpeg",
@@ -169,6 +211,7 @@ def mux_audio(original_path, silent_video_path, output_path):
     ]
 
     if has_audio:
+
         cmd += [
             "-i",
             str(original_path),
@@ -179,15 +222,18 @@ def mux_audio(original_path, silent_video_path, output_path):
             "-map",
             "1:a:0?",
         ]
+
     else:
+
         cmd += [
             "-map",
             "0:v:0",
         ]
 
     # --------------------------------------------------
-    # WEB / BROWSER COMPATIBLE VIDEO
+    # WEB / WINDOWS / BROWSER COMPATIBLE VIDEO
     # --------------------------------------------------
+
     cmd += [
         "-c:v",
         "libx264",
@@ -203,6 +249,7 @@ def mux_audio(original_path, silent_video_path, output_path):
     ]
 
     if has_audio:
+
         cmd += [
             "-c:a",
             "aac",
@@ -217,6 +264,7 @@ def mux_audio(original_path, silent_video_path, output_path):
     ]
 
     if has_audio:
+
         cmd += [
             "-shortest",
         ]
@@ -225,19 +273,105 @@ def mux_audio(original_path, silent_video_path, output_path):
         str(output_path),
     ]
 
+    # --------------------------------------------------
+    # RUN FFMPEG
+    # --------------------------------------------------
+
     result = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
     )
 
+    # --------------------------------------------------
+    # FFMPEG FAILURE
+    # --------------------------------------------------
+
     if result.returncode != 0:
-        return (
-            "audio_mux_failed: "
-            + result.stderr[-500:]
+
+        output_path.unlink(
+            missing_ok=True
         )
 
-    Path(silent_video_path).unlink(
+        raise RuntimeError(
+            "FFmpeg final mux failed:\n"
+            + result.stderr[-2000:]
+        )
+
+    # --------------------------------------------------
+    # VERIFY OUTPUT EXISTS AND HAS REAL DATA
+    # --------------------------------------------------
+
+    if not output_path.exists():
+
+        raise RuntimeError(
+            "FFmpeg completed but final output "
+            "file was not created."
+        )
+
+    output_size = output_path.stat().st_size
+
+    if output_size < 1000:
+
+        output_path.unlink(
+            missing_ok=True
+        )
+
+        raise RuntimeError(
+            f"Final MP4 is too small: "
+            f"{output_size} bytes"
+        )
+
+    # --------------------------------------------------
+    # VALIDATE FINAL MP4 WITH FFPROBE
+    # --------------------------------------------------
+
+    validation = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+
+            "-select_streams",
+            "v:0",
+
+            "-show_entries",
+            "stream=codec_name,duration",
+
+            "-of",
+            "default=noprint_wrappers=1",
+
+            str(output_path),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    if (
+        validation.returncode != 0 or
+        not validation.stdout.strip()
+    ):
+
+        validation_error = (
+            validation.stderr.strip()
+            or
+            "ffprobe could not find a valid video stream"
+        )
+
+        output_path.unlink(
+            missing_ok=True
+        )
+
+        raise RuntimeError(
+            "Final MP4 validation failed: "
+            + validation_error
+        )
+
+    # --------------------------------------------------
+    # SUCCESS — DELETE TEMP VIDEO
+    # --------------------------------------------------
+
+    silent_video_path.unlink(
         missing_ok=True
     )
 
@@ -246,7 +380,8 @@ def mux_audio(original_path, silent_video_path, output_path):
 
     return "no_audio_in_source"
 
-def adaptive_remove_region(frame, mask, bbox, feather=12):
+
+def adaptive_remove_region(frame, mask, bbox, feather=15):
     """
     Remove a selected region using adaptive background reconstruction.
 
@@ -1030,14 +1165,19 @@ progress_callback=None,
         return report
 
     log("DEBUG: Starting audio mux")
-
-    audio_status = mux_audio(input_path, tmp_video, output_path)
+    audio_status = mux_audio(
+    input_path,
+    tmp_video,
+    output_path
+)
     report["audio"] = audio_status
-
-    if audio_status not in ("ok", "no_audio_in_source"):
-        report["status"] = "audio_failed"
-
+    log(
+    f"DEBUG: Final MP4 validated successfully: "
+    f"{output_path}"
+)
     if detect_rate < 0.3:
+
+    
         report["status"] = "low_detection_warning"
 
     log("DEBUG: Returning report")
