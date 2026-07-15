@@ -1022,6 +1022,152 @@ def batch_status_route(batch_id):
         })
 
 
+# --------------------------------------------------
+# DELAYED BATCH CLEANUP
+# --------------------------------------------------
+
+def cleanup_batch_after_delay(
+    batch_id,
+    batch_job_ids,
+    zip_path,
+    delay_seconds=3600
+):
+
+    print(
+        f"CLEANUP SCHEDULED FOR BATCH {batch_id} "
+        f"IN {delay_seconds} SECONDS"
+    )
+
+    # Wait 1 hour
+    time.sleep(delay_seconds)
+
+    print("=" * 60)
+    print("STARTING DELAYED CLEANUP:", batch_id)
+    print("=" * 60)
+
+    # --------------------------------------------------
+    # DELETE JOB FOLDERS
+    # jobs/<job_id>/
+    # --------------------------------------------------
+
+    for job_id in batch_job_ids:
+
+        job_dir = (
+            BASE_DIR /
+            "jobs" /
+            job_id
+        )
+
+        try:
+
+            if job_dir.exists():
+
+                shutil.rmtree(
+                    job_dir,
+                    ignore_errors=True
+                )
+
+                print(
+                    "DELETED JOB FOLDER:",
+                    job_dir
+                )
+
+        except Exception as exc:
+
+            print(
+                "JOB FOLDER CLEANUP ERROR:",
+                job_id,
+                exc
+            )
+
+        # --------------------------------------------------
+        # DELETE INDIVIDUAL CLEANED OUTPUTS
+        # --------------------------------------------------
+
+        try:
+
+            output_dir = (
+                BASE_DIR /
+                "outputs"
+            )
+
+            for output_file in output_dir.glob(
+                f"{job_id}*"
+            ):
+
+                if output_file.is_file():
+
+                    output_file.unlink(
+                        missing_ok=True
+                    )
+
+                    print(
+                        "DELETED OUTPUT:",
+                        output_file
+                    )
+
+        except Exception as exc:
+
+            print(
+                "OUTPUT CLEANUP ERROR:",
+                job_id,
+                exc
+            )
+
+    # --------------------------------------------------
+    # DELETE BATCH ZIP
+    # --------------------------------------------------
+
+    try:
+
+        zip_path.unlink(
+            missing_ok=True
+        )
+
+        print(
+            "DELETED BATCH ZIP:",
+            zip_path
+        )
+
+    except Exception as exc:
+
+        print(
+            "ZIP CLEANUP ERROR:",
+            exc
+        )
+
+    # --------------------------------------------------
+    # REMOVE JOBS FROM MEMORY
+    # --------------------------------------------------
+
+    with JOBS_LOCK:
+
+        for job_id in batch_job_ids:
+
+            JOBS.pop(
+                job_id,
+                None
+            )
+
+    # --------------------------------------------------
+    # REMOVE BATCH PROGRESS FROM MEMORY
+    # --------------------------------------------------
+
+    with BATCH_PROGRESS_LOCK:
+
+        BATCH_PROGRESS.pop(
+            batch_id,
+            None
+        )
+
+    print("=" * 60)
+    print(
+        "DELAYED BATCH CLEANUP COMPLETE:",
+        batch_id
+    )
+    print("=" * 60)
+
+
 @app.route("/batch-download/<batch_id>")
 def batch_download_route(batch_id):
 
@@ -1038,42 +1184,65 @@ def batch_download_route(batch_id):
 
         return "Batch ZIP not found", 404
 
+    # --------------------------------------------------
+    # FIND JOBS BELONGING ONLY TO THIS BATCH
+    # --------------------------------------------------
+
+    batch_job_ids = []
+
+    with JOBS_LOCK:
+
+        for job_id, job_data in JOBS.items():
+
+            if job_data.get("batch_id") == batch_id:
+
+                batch_job_ids.append(
+                    job_id
+                )
+
+    print(
+        "DOWNLOAD STARTED FOR BATCH:",
+        batch_id
+    )
+
+    print(
+        "BATCH JOBS:",
+        batch_job_ids
+    )
+
+    # --------------------------------------------------
+    # START 1-HOUR CLEANUP TIMER
+    # --------------------------------------------------
+
+    cleanup_thread = threading.Thread(
+        target=cleanup_batch_after_delay,
+        args=(
+            batch_id,
+            batch_job_ids,
+            zip_path,
+            3600
+        ),
+        daemon=True
+    )
+
+    cleanup_thread.start()
+
+    print(
+        "1-HOUR CLEANUP TIMER STARTED:",
+        batch_id
+    )
+
+    # --------------------------------------------------
+    # DOWNLOAD NORMALLY
+    # NO FILE IS DELETED DURING DOWNLOAD
+    # --------------------------------------------------
+
     return send_file(
         zip_path,
         as_attachment=True,
         download_name=(
             f"batch_{batch_id}_cleaned.zip"
         )
-    )
-
-    with zipfile.ZipFile(
-        zip_path,
-        "w",
-        zipfile.ZIP_DEFLATED
-    ) as zip_file:
-
-        for result in results:
-
-            if not result["ok"]:
-                continue
-
-            output_path = Path(
-                result["output"]
-            )
-
-            if output_path.exists():
-
-                zip_file.write(
-                    output_path,
-                    arcname=output_path.name
-                )
-
-    print("ZIP CREATED:", zip_path)
-
-    return send_file(
-        zip_path,
-        as_attachment=True,
-        download_name=f"batch_{batch_id}_cleaned.zip"
     )
 
 
