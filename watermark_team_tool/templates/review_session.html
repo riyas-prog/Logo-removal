@@ -1,0 +1,1686 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
+
+<title>Watermark Remover - Review</title>
+
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: Arial, Helvetica, sans-serif;
+    background:
+        linear-gradient(
+            135deg,
+            #eef5ff 0%,
+            #f8fbff 50%,
+            #ffffff 100%
+        );
+    color: #172033;
+}
+
+/* --------------------------------------------------
+   TOP HEADER
+-------------------------------------------------- */
+
+.topbar {
+    width: 100%;
+    background: #ffffff;
+    border-bottom: 1px solid #dce7f5;
+    padding: 18px 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    box-shadow:
+        0 4px 18px rgba(31, 76, 135, 0.08);
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.brand-icon {
+    width: 42px;
+    height: 42px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #1769e0;
+    color: white;
+
+    border-radius: 12px;
+
+    font-size: 21px;
+    font-weight: 800;
+}
+
+.brand-title {
+    margin: 0;
+
+    font-size: 20px;
+    font-weight: 800;
+
+    color: #172033;
+}
+
+.brand-subtitle {
+    margin-top: 3px;
+
+    font-size: 13px;
+
+    color: #74829a;
+}
+
+.back-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 11px 18px;
+
+    background: #edf4ff;
+    color: #1769e0;
+
+    border: 1px solid #cfe0fa;
+    border-radius: 10px;
+
+    text-decoration: none;
+
+    font-size: 14px;
+    font-weight: 700;
+
+    transition: 0.2s;
+}
+
+.back-upload-btn:hover {
+    background: #1769e0;
+    color: #ffffff;
+}
+
+/* --------------------------------------------------
+   PAGE
+-------------------------------------------------- */
+
+.page-container {
+    width: 100%;
+    max-width: 1180px;
+
+    margin: 0 auto;
+
+    padding: 38px 24px 60px;
+}
+
+.page-heading {
+    text-align: center;
+
+    margin-bottom: 28px;
+}
+
+.page-heading h1 {
+    margin: 0;
+
+    font-size: 30px;
+    font-weight: 800;
+
+    color: #172033;
+}
+
+.page-heading p {
+    margin: 9px 0 0;
+
+    color: #728097;
+
+    font-size: 15px;
+}
+
+/* --------------------------------------------------
+   MAIN CARD
+-------------------------------------------------- */
+
+.review-card {
+    max-width: 760px;
+
+    margin: 0 auto;
+
+    background: #ffffff;
+
+    border: 1px solid #dce7f5;
+    border-radius: 20px;
+
+    padding: 28px;
+
+    box-shadow:
+        0 16px 45px rgba(39, 78, 125, 0.12);
+}
+
+.video-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    gap: 15px;
+
+    margin-bottom: 22px;
+}
+
+.video-info h2 {
+    margin: 0;
+
+    font-size: 20px;
+    font-weight: 800;
+
+    color: #172033;
+
+    word-break: break-word;
+}
+
+.video-info p {
+    margin: 7px 0 0;
+
+    color: #7a879b;
+
+    font-size: 14px;
+}
+
+.video-counter {
+    flex-shrink: 0;
+
+    padding: 9px 14px;
+
+    background: #edf4ff;
+    color: #1769e0;
+
+    border-radius: 999px;
+
+    font-size: 14px;
+    font-weight: 800;
+}
+
+/* --------------------------------------------------
+   VIDEO PREVIEW
+-------------------------------------------------- */
+
+.preview-wrapper {
+    display: flex;
+    justify-content: center;
+
+    width: 100%;
+
+    padding: 22px;
+
+    background: #f4f8fd;
+
+    border: 1px solid #dce7f5;
+    border-radius: 16px;
+}
+
+#canvas {
+    position: relative;
+    display: inline-block;
+
+    max-width: 100%;
+}
+
+#review-image {
+    width: 360px;
+    max-width: 100%;
+
+    display: block;
+
+    border-radius: 12px;
+
+    box-shadow:
+        0 8px 24px rgba(20, 50, 90, 0.15);
+}
+
+/* --------------------------------------------------
+   SELECTION BOX
+-------------------------------------------------- */
+
+#box {
+    position: absolute;
+
+    left: 0;
+    top: 0;
+
+    width: var(--box-width, 120px);
+    height: var(--box-height, 60px);
+
+    border: 3px solid #00d65a;
+
+    background:
+        rgba(0, 214, 90, 0.18);
+
+    transform:
+        var(
+            --box-transform,
+            translate(30px, 30px)
+        );
+
+    z-index: 9999;
+
+    box-sizing: border-box;
+
+    cursor: move;
+
+    box-shadow:
+        0 0 0 1px rgba(255,255,255,0.7);
+}
+
+/* --------------------------------------------------
+   HELP TEXT
+-------------------------------------------------- */
+
+.selection-help {
+    margin-top: 18px;
+
+    padding: 14px 16px;
+
+    background: #f5f9ff;
+
+    border-left: 4px solid #1769e0;
+    border-radius: 8px;
+
+    color: #56657a;
+
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* --------------------------------------------------
+   BUTTONS
+-------------------------------------------------- */
+
+.button-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(3, 1fr);
+
+    gap: 12px;
+
+    margin-top: 24px;
+}
+
+.action-btn {
+    width: 100%;
+
+    padding: 14px 16px;
+
+    border-radius: 11px;
+
+    font-size: 14px;
+    font-weight: 800;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+.secondary-btn {
+    background: #ffffff;
+    color: #1769e0;
+
+    border: 2px solid #1769e0;
+}
+
+.secondary-btn:hover {
+    background: #edf4ff;
+}
+
+.primary-btn {
+    background: #1769e0;
+    color: #ffffff;
+
+    border: 2px solid #1769e0;
+}
+
+.primary-btn:hover {
+    background: #0f58c3;
+    border-color: #0f58c3;
+}
+
+.action-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* --------------------------------------------------
+   BATCH PROGRESS
+-------------------------------------------------- */
+
+#batch-progress-panel {
+    display: none;
+
+    margin-top: 28px;
+
+    padding: 24px;
+
+    background: #f7faff;
+
+    border: 1px solid #d7e5f7;
+    border-radius: 16px;
+}
+
+#batch-main-status {
+    margin: 0 0 18px;
+
+    color: #172033;
+
+    font-size: 20px;
+    font-weight: 800;
+}
+
+.progress-track {
+    width: 100%;
+    height: 18px;
+
+    background: #dfe9f6;
+
+    border-radius: 999px;
+
+    overflow: hidden;
+}
+
+#batch-progress-bar {
+    width: 0%;
+    height: 100%;
+
+    background:
+        linear-gradient(
+            90deg,
+            #1769e0,
+            #4b91f7
+        );
+
+    border-radius: 999px;
+
+    transition:
+        width 0.4s ease;
+}
+
+#batch-progress-text {
+    margin: 12px 0 0;
+
+    color: #53647b;
+
+    font-size: 15px;
+    font-weight: 700;
+}
+
+#batch-video-list {
+    margin-top: 18px;
+
+    padding: 16px;
+
+    background: #ffffff;
+
+    border: 1px solid #e0e9f5;
+    border-radius: 11px;
+
+    line-height: 1.9;
+
+    color: #435269;
+
+    font-size: 15px;
+    font-weight: 700;
+}
+
+/* --------------------------------------------------
+   RESPONSIVE
+-------------------------------------------------- */
+
+@media (max-width: 700px) {
+
+    .topbar {
+        padding: 15px 18px;
+    }
+
+    .brand-subtitle {
+        display: none;
+    }
+
+    .page-container {
+        padding:
+            25px 14px
+            40px;
+    }
+
+    .review-card {
+        padding: 18px;
+    }
+
+    .video-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .button-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .back-upload-btn {
+        padding: 10px 12px;
+
+        font-size: 13px;
+    }
+
+}
+
+/* ==================================================
+   DESKTOP SIDE-BY-SIDE REVIEW LAYOUT
+================================================== */
+
+@media (min-width: 901px) {
+
+    .page-container {
+        max-width: 1400px;
+        width: 100%;
+        padding: 25px 40px 50px;
+    }
+
+    .review-card {
+        width: 100%;
+        max-width: 1200px;
+        margin: 0 auto;
+
+        display: grid;
+
+        grid-template-columns:
+            minmax(500px, 1.4fr)
+            minmax(420px, 1fr);
+
+        grid-template-areas:
+            "preview header"
+            "preview help"
+            "preview buttons"
+            "progress progress";
+
+        column-gap: 32px;
+        row-gap: 18px;
+
+        align-items: start;
+    }
+
+    /* LEFT: VIDEO */
+
+    .preview-wrapper {
+        grid-area: preview;
+
+        width: 100%;
+        min-height: 600px;
+
+        padding: 20px;
+
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+    }
+
+    #canvas {
+        position: relative;
+        display: inline-block;
+        max-width: 100%;
+    }
+
+    #review-image {
+        display: block;
+
+        width: auto;
+        height: auto;
+
+        max-width: 100%;
+        max-height: 70vh;
+
+        object-fit: contain;
+    }
+
+    /* RIGHT: INFO */
+
+    .video-header {
+        grid-area: header;
+
+        width: 100%;
+        margin: 0;
+        padding: 22px;
+
+        background: #f7faff;
+        border: 1px solid #dce7f5;
+        border-radius: 14px;
+
+        display: flex;
+        align-items: flex-start;
+        gap: 20px;
+    }
+
+    .video-info {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .video-info h2 {
+        font-size: 20px;
+        line-height: 1.35;
+
+        overflow-wrap: anywhere;
+        word-break: normal;
+    }
+
+    .video-counter {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .selection-help {
+        grid-area: help;
+        width: 100%;
+        margin: 0;
+    }
+
+    .button-grid {
+        grid-area: buttons;
+
+        width: 100%;
+        margin: 0;
+
+        grid-template-columns: 1fr 1fr;
+    }
+
+    #save-box-btn {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    #prev-btn {
+        grid-column: 1;
+        grid-row: 2;
+    }
+
+    #next-btn {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    #batch-progress-panel {
+        grid-area: progress;
+        width: 100%;
+    }
+}
+
+</style>
+
+</head>
+
+<body>
+
+<!-- TOP HEADER -->
+<header class="topbar">
+
+    <div class="brand">
+
+        <div class="brand-icon">
+            W
+        </div>
+
+        <div>
+
+            <div class="brand-title">
+                Watermark Remover
+            </div>
+
+            <div class="brand-subtitle">
+                Team Video Processing Tool
+            </div>
+
+        </div>
+
+    </div>
+
+    <a
+        href="/"
+        class="back-upload-btn"
+    >
+        Back to Upload
+    </a>
+
+</header>
+
+
+<main class="page-container">
+
+    <div class="page-heading">
+
+        <h1>
+            Select Watermark Area
+        </h1>
+
+        <p>
+            Move and resize the green box over the
+            watermark, then save your selection.
+        </p>
+
+    </div>
+
+
+    {% set job = session.jobs[session.current] %}
+
+
+    <section class="review-card">
+
+        <div class="video-header">
+
+            <div class="video-info">
+
+                <h2>
+                    {{ job.filename }}
+                </h2>
+
+                <p>
+                    Status: {{ job.status }}
+                </p>
+
+            </div>
+
+            <div class="video-counter">
+
+                Video
+                {{ session.current + 1 }}
+                of
+                {{ session.total }}
+
+            </div>
+
+        </div>
+
+
+        <!-- VIDEO PREVIEW -->
+        <div class="preview-wrapper">
+
+            <div id="canvas">
+
+                <img
+                    id="review-image"
+                    src="{{ url_for(
+                        'thumbnail',
+                        job_id=job.job_id
+                    ) }}"
+                >
+
+                <div
+                    id="box"
+
+                    data-x="{{
+                        (
+                            job.manual_box.x
+                            if job.manual_box
+                            else 30
+                        )|int
+                    }}"
+
+                    data-y="{{
+                        (
+                            job.manual_box.y
+                            if job.manual_box
+                            else 30
+                        )|int
+                    }}"
+
+                    data-width="{{
+                        (
+                            job.manual_box.width
+                            if job.manual_box
+                            else 120
+                        )|int
+                    }}"
+
+                    data-height="{{
+                        (
+                            job.manual_box.height
+                            if job.manual_box
+                            else 60
+                        )|int
+                    }}"
+
+                    style="
+                        --box-width:
+                        {{
+                            (
+                                job.manual_box.width
+                                if job.manual_box
+                                else 120
+                            )|int
+                        }}px;
+
+                        --box-height:
+                        {{
+                            (
+                                job.manual_box.height
+                                if job.manual_box
+                                else 60
+                            )|int
+                        }}px;
+
+                        --box-transform:
+                        translate(
+                            {{
+                                (
+                                    job.manual_box.x
+                                    if job.manual_box
+                                    else 30
+                                )|int
+                            }}px,
+                            {{
+                                (
+                                    job.manual_box.y
+                                    if job.manual_box
+                                    else 30
+                                )|int
+                            }}px
+                        );
+                    "
+
+                    data-box-width="{{
+                        (
+                            job.manual_box.width
+                            if job.manual_box
+                            else 120
+                        )|int
+                    }}"
+
+                    data-box-height="{{
+                        (
+                            job.manual_box.height
+                            if job.manual_box
+                            else 60
+                        )|int
+                    }}"
+
+                    data-box-x="{{
+                        (
+                            job.manual_box.x
+                            if job.manual_box
+                            else 30
+                        )|int
+                    }}"
+
+                    data-box-y="{{
+                        (
+                            job.manual_box.y
+                            if job.manual_box
+                            else 30
+                        )|int
+                    }}"
+                ></div>
+
+            </div>
+
+        </div>
+
+
+        <div class="selection-help">
+
+            <strong>Tip:</strong>
+            Position the green selection box so it
+            completely covers the watermark or logo.
+
+        </div>
+
+
+        <!-- BUTTONS -->
+        <div class="button-grid">
+
+            <button
+                id="prev-btn"
+                class="action-btn secondary-btn"
+            >
+                ← Previous Video
+            </button>
+
+            <button
+                id="save-box-btn"
+                class="action-btn primary-btn"
+            >
+                Save Box
+            </button>
+
+            <button
+                id="next-btn"
+                class="action-btn primary-btn"
+            >
+                Next Video →
+            </button>
+
+        </div>
+
+
+        <!-- BATCH PROGRESS PANEL -->
+        <div id="batch-progress-panel">
+
+            <h2 id="batch-main-status">
+                Preparing batch...
+            </h2>
+
+            <div class="progress-track">
+
+                <div
+                    id="batch-progress-bar"
+                ></div>
+
+            </div>
+
+            <p id="batch-progress-text">
+                0% - Waiting to start
+            </p>
+
+            <div
+                id="batch-video-list"
+            ></div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<script>
+
+const box=document.getElementById("box");
+box.style.left = "0px";
+box.style.top = "0px";
+
+console.log("BOX =", box);
+
+box.setAttribute("data-x", box.offsetLeft);
+box.setAttribute("data-y", box.offsetTop);
+interact('#box')
+.draggable({
+
+listeners:{
+
+move(event){
+
+const target=event.target;
+
+let x=(parseFloat(target.getAttribute('data-x'))||0)+event.dx;
+
+let y=(parseFloat(target.getAttribute('data-y'))||0)+event.dy;
+
+target.style.transform=
+`translate(${x}px,${y}px)`;
+
+target.setAttribute('data-x',x);
+
+target.setAttribute('data-y',y);
+
+}
+
+}
+
+})
+
+.resizable({
+
+edges:{
+left:true,
+right:true,
+top:true,
+bottom:true
+},
+
+listeners:{
+
+move(event){
+
+let target=event.target;
+
+let x=parseFloat(target.getAttribute('data-x'))||0;
+
+let y=parseFloat(target.getAttribute('data-y'))||0;
+
+target.style.width=event.rect.width+'px';
+
+target.style.height=event.rect.height+'px';
+
+x+=event.deltaRect.left;
+
+y+=event.deltaRect.top;
+
+target.style.transform=
+`translate(${x}px,${y}px)`;
+
+target.setAttribute('data-x',x);
+
+target.setAttribute('data-y',y);
+
+}
+
+}
+
+});
+
+</script>
+
+<script>
+
+document
+.getElementById("save-box-btn")
+.addEventListener("click", async () => {
+
+    const saveBtn = document.getElementById("save-box-btn");
+    const nextBtn = document.getElementById("next-btn");
+    const prevBtn = document.getElementById("prev-btn");
+    const box = document.getElementById("box");
+
+    prevBtn.onclick = () => {
+
+    const currentIndex =
+        parseInt("{{ session.current | default(0) }}", 10);
+
+    const batchId =
+        "{{ session.batch_id if session.batch_id else request.args.get('batch_id', '') }}";
+
+    if (currentIndex > 0) {
+
+        window.location.href =
+            "/review-session?batch_id=" +
+            encodeURIComponent(batchId) +
+            "&index=" +
+            (currentIndex - 1);
+
+    }
+    else {
+
+        alert("This is the first video.");
+
+    }
+};
+
+    // Prevent double-click / duplicate processing
+    saveBtn.disabled = true;
+    nextBtn.disabled = true;
+
+    const originalText = saveBtn.innerHTML;
+
+    try {
+
+        // --------------------------------------------------
+        // STEP 1: SAVE BOX
+        // --------------------------------------------------
+        saveBtn.innerHTML = "💾 Saving selection...";
+
+        // --------------------------------------------------
+// GET BOX POSITION ON THE DISPLAYED PREVIEW
+// --------------------------------------------------
+
+const previewX =
+    parseFloat(
+        box.getAttribute("data-x")
+    ) || 0;
+
+const previewY =
+    parseFloat(
+        box.getAttribute("data-y")
+    ) || 0;
+
+const previewWidth =
+    box.offsetWidth;
+
+const previewHeight =
+    box.offsetHeight;
+
+
+// --------------------------------------------------
+// GET ORIGINAL IMAGE / VIDEO SCALE
+// --------------------------------------------------
+
+const reviewImage =
+    document.getElementById("review-image");
+
+const displayedWidth =
+    reviewImage.clientWidth;
+
+const displayedHeight =
+    reviewImage.clientHeight;
+
+const originalWidth =
+    reviewImage.naturalWidth;
+
+const originalHeight =
+    reviewImage.naturalHeight;
+
+
+// --------------------------------------------------
+// CALCULATE SCALE
+// --------------------------------------------------
+
+const scaleX =
+    originalWidth / displayedWidth;
+
+const scaleY =
+    originalHeight / displayedHeight;
+
+
+// --------------------------------------------------
+// CONVERT PREVIEW COORDINATES TO ORIGINAL VIDEO
+// --------------------------------------------------
+
+const x =
+    Math.round(previewX * scaleX);
+
+const y =
+    Math.round(previewY * scaleY);
+
+const width =
+    Math.round(previewWidth * scaleX);
+
+const height =
+    Math.round(previewHeight * scaleY);
+
+
+// --------------------------------------------------
+// DEBUG
+// --------------------------------------------------
+
+console.log(
+    "PREVIEW BOX:",
+    {
+        x: previewX,
+        y: previewY,
+        width: previewWidth,
+        height: previewHeight
+    }
+);
+
+console.log(
+    "IMAGE SIZE:",
+    {
+        displayedWidth,
+        displayedHeight,
+        originalWidth,
+        originalHeight
+    }
+);
+
+console.log(
+    "SCALE:",
+    {
+        scaleX,
+        scaleY
+    }
+);
+
+console.log(
+    "SAVING ORIGINAL VIDEO BOX:",
+    {
+        x,
+        y,
+        width,
+        height
+    }
+);
+
+        const saveResponse = await fetch(
+            "/save-box",
+            {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    job_id: "{{ job.job_id }}",
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height
+                })
+            }
+        );
+
+        const saveResult =
+            await saveResponse.json();
+
+        if (
+            !saveResponse.ok ||
+            !saveResult.ok
+        ) {
+            throw new Error(
+                "Failed to save the selected box."
+            );
+        }
+
+        // --------------------------------------------------
+// STEP 2: BOX SAVED - DO NOT PROCESS YET
+// --------------------------------------------------
+
+const currentIndex =
+    parseInt("{{ session.current | default(0) }}", 10);
+
+const totalVideos =
+    parseInt("{{ session.total | default(0) }}", 10);
+
+const batchId =
+    {{ request.args.get('batch_id', '') | tojson }};
+
+const nextIndex =
+    currentIndex + 1;
+
+console.log(
+    "BOX SAVED:",
+    {
+        jobId: {{ job.job_id | tojson }},
+        currentIndex: currentIndex,
+        totalVideos: totalVideos,
+        batchId: batchId
+    }
+);
+
+
+// --------------------------------------------------
+// MORE VIDEOS LEFT -> OPEN NEXT VIDEO IMMEDIATELY
+// --------------------------------------------------
+
+if (nextIndex < totalVideos) {
+
+    saveBtn.innerHTML =
+        "Box saved - Opening next video...";
+
+    window.location.href =
+        "/review-session?batch_id=" +
+        encodeURIComponent(batchId) +
+        "&index=" +
+        nextIndex;
+
+    return;
+}
+
+
+// --------------------------------------------------
+// LAST VIDEO -> ALL BOXES HAVE BEEN SAVED
+// --------------------------------------------------
+
+saveBtn.innerHTML =
+    "All boxes saved";
+
+saveBtn.disabled =
+    true;
+
+nextBtn.disabled =
+    false;
+
+nextBtn.innerHTML =
+    "Process All " +
+    totalVideos +
+    " Videos";
+
+alert(
+    "All " +
+    totalVideos +
+    " box selections are saved. Click Process All to start bulk processing."
+);
+
+
+// --------------------------------------------------
+// CHANGE NEXT BUTTON INTO PROCESS ALL BUTTON
+// --------------------------------------------------
+
+nextBtn.onclick = async () => {
+
+    nextBtn.disabled = true;
+    nextBtn.innerHTML = "Starting batch processing...";
+
+    const progressPanel =
+        document.getElementById("batch-progress-panel");
+
+    const mainStatus =
+        document.getElementById("batch-main-status");
+
+    const progressBar =
+        document.getElementById("batch-progress-bar");
+
+    const progressText =
+        document.getElementById("batch-progress-text");
+
+    const videoList =
+        document.getElementById("batch-video-list");
+
+    if (
+        !progressPanel ||
+        !mainStatus ||
+        !progressBar ||
+        !progressText ||
+        !videoList
+    ) {
+        console.error("Progress UI elements are missing.");
+
+        nextBtn.disabled = false;
+        nextBtn.innerHTML = "Process All Videos";
+
+        alert("Progress UI elements are missing.");
+        return;
+    }
+
+    progressPanel.style.display = "block";
+
+    mainStatus.innerHTML =
+        "Starting batch processing...";
+
+    progressBar.style.width = "0%";
+
+    progressText.innerHTML =
+        "0% - Preparing...";
+
+    videoList.innerHTML = "";
+
+    try {
+
+        // ----------------------------------------------
+        // START BACKGROUND BATCH
+        // ----------------------------------------------
+
+        const startResponse = await fetch(
+            "/batch-process?batch_id=" +
+            encodeURIComponent(batchId)
+        );
+
+        const startText =
+            await startResponse.text();
+
+        let startResult;
+
+        try {
+            startResult =
+                JSON.parse(startText);
+        }
+        catch (error) {
+            throw new Error(
+                "Invalid start response: " +
+                startText
+            );
+        }
+
+        if (
+            !startResponse.ok ||
+            !startResult.ok
+        ) {
+            throw new Error(
+                startResult.error ||
+                "Could not start batch processing."
+            );
+        }
+
+        nextBtn.innerHTML =
+            "Processing...";
+
+        // ----------------------------------------------
+        // POLL BATCH STATUS
+        // ----------------------------------------------
+
+        const pollBatchStatus = async () => {
+
+            try {
+
+                const statusResponse = await fetch(
+                    "/batch-status/" +
+                    encodeURIComponent(batchId),
+                    {
+                        cache: "no-store"
+                    }
+                );
+
+                const statusText =
+                    await statusResponse.text();
+
+                let statusResult;
+
+                try {
+                    statusResult =
+                        JSON.parse(statusText);
+                }
+                catch (error) {
+                    throw new Error(
+                        "Invalid status response: " +
+                        statusText
+                    );
+                }
+
+                if (
+                    !statusResponse.ok ||
+                    !statusResult.ok
+                ) {
+                    throw new Error(
+                        statusResult.error ||
+                        "Could not read batch status."
+                    );
+                }
+
+                const total =
+                    Number(statusResult.total || 0);
+
+                const completed =
+                    Number(statusResult.completed || 0);
+
+                // --------------------------------------
+                // CALCULATE LIVE OVERALL FRAME PROGRESS
+                // --------------------------------------
+
+const videosForProgress =
+    Array.isArray(statusResult.videos)
+        ? statusResult.videos
+        : [];
+
+let percent = 0;
+
+if (total > 0) {
+
+    let totalProgressUnits = 0;
+
+    videosForProgress.forEach((video) => {
+
+        if (video.status === "completed") {
+
+            // Completed video = 100%
+            totalProgressUnits += 100;
+
+        }
+        else if (video.status === "processing") {
+
+            // Current video = live frame percentage
+            totalProgressUnits +=
+                Number(video.percent || 0);
+
+        }
+
+    });
+
+    percent = Math.round(
+        totalProgressUnits / total
+    );
+
+}
+                // --------------------------------------
+                // UPDATE OVERALL PROGRESS
+                // --------------------------------------
+
+                progressBar.style.width =
+                    percent + "%";
+
+                const currentVideo =
+    videosForProgress.find(
+        (video) =>
+            video.status === "processing"
+    );
+
+if (currentVideo) {
+
+    progressText.innerHTML =
+        percent +
+        "% overall - Video " +
+        currentVideo.number +
+        ": " +
+        Number(
+            currentVideo.current_frame || 0
+        ) +
+        " / " +
+        Number(
+            currentVideo.total_frames || 0
+        ) +
+        " frames (" +
+        Number(
+            currentVideo.percent || 0
+        ) +
+        "%)";
+
+}
+else {
+
+    progressText.innerHTML =
+        percent +
+        "% - " +
+        completed +
+        " of " +
+        total +
+        " videos completed";
+
+}
+                // --------------------------------------
+                // UPDATE VIDEO LIST
+                // --------------------------------------
+
+                videoList.innerHTML = "";
+
+                const videos =
+                    Array.isArray(statusResult.videos)
+                        ? statusResult.videos
+                        : [];
+
+                videos.forEach((video) => {
+
+                    const row =
+                        document.createElement("div");
+
+                    row.style.padding =
+                        "6px 0";
+
+                    if (
+                        video.status === "completed"
+                    ) {
+                        row.innerHTML =
+                            "[DONE] Video " +
+                            video.number +
+                            " - Completed";
+                    }
+                    else if (
+                        video.status === "processing"
+                    ) {
+                        row.innerHTML =
+                            "[WORKING] Video " +
+                            video.number +
+                            " - Processing...";
+                    }
+                    else if (
+                        video.status === "failed"
+                    ) {
+                        row.innerHTML =
+                            "[FAILED] Video " +
+                            video.number +
+                            " - Failed";
+                    }
+                    else {
+                        row.innerHTML =
+                            "[WAITING] Video " +
+                            video.number +
+                            " - Waiting";
+                    }
+
+                    videoList.appendChild(row);
+
+                });
+
+                // --------------------------------------
+                // PROCESSING
+                // --------------------------------------
+
+                if (
+                    statusResult.status === "processing"
+                ) {
+                    mainStatus.innerHTML =
+                        "Processing video " +
+                        statusResult.current +
+                        " of " +
+                        total +
+                        "...";
+
+                    setTimeout(
+                        pollBatchStatus,
+                        1000
+                    );
+
+                    return;
+                }
+
+                // --------------------------------------
+                // CREATING ZIP
+                // --------------------------------------
+
+                if (
+                    statusResult.status ===
+                    "creating_zip"
+                ) {
+                    mainStatus.innerHTML =
+                        "Creating ZIP file...";
+
+                    setTimeout(
+                        pollBatchStatus,
+                        1000
+                    );
+
+                    return;
+                }
+
+                // --------------------------------------
+                // COMPLETED
+                // --------------------------------------
+
+                if (
+                    statusResult.status === "completed"
+                ) {
+                    progressBar.style.width =
+                        "100%";
+
+                    progressText.innerHTML =
+                        "100% - Processing complete";
+
+                    mainStatus.innerHTML =
+                        "All videos completed. Downloading ZIP...";
+
+                    nextBtn.innerHTML =
+                        "Batch Complete";
+
+                    if (
+                        statusResult.download_url
+                    ) {
+                        window.location.href =
+                            statusResult.download_url;
+                    }
+
+                    return;
+                }
+
+                // --------------------------------------
+                // FAILED
+                // --------------------------------------
+
+                if (
+                    statusResult.status === "failed"
+                ) {
+                    throw new Error(
+                        statusResult.error ||
+                        "Batch processing failed."
+                    );
+                }
+
+                // Unknown state: check again
+                setTimeout(
+                    pollBatchStatus,
+                    1000
+                );
+
+            }
+            catch (error) {
+
+                console.error(
+                    "STATUS ERROR:",
+                    error
+                );
+
+                mainStatus.innerHTML =
+                    "Error: " +
+                    error.message;
+
+                nextBtn.disabled =
+                    false;
+
+                nextBtn.innerHTML =
+                    "Retry Process All Videos";
+
+            }
+
+        };
+
+        // Give background thread a moment to
+        // create the first progress state.
+        setTimeout(
+            pollBatchStatus,
+            500
+        );
+
+    }
+    catch (error) {
+
+        console.error(
+            "START ERROR:",
+            error
+        );
+
+        mainStatus.innerHTML =
+            "Error: " +
+            error.message;
+
+        nextBtn.disabled =
+            false;
+
+        nextBtn.innerHTML =
+            "Retry Process All Videos";
+
+    }
+
+};
+// THIS IS THE OUTER SAVE BOX CATCH - KEEP IT
+}
+   catch (error) {
+
+    console.error(error);
+
+    saveBtn.innerHTML =
+        originalText;
+
+    saveBtn.disabled =
+        false;
+
+    nextBtn.disabled =
+        false;
+
+    alert(
+        error.message ||
+        "An error occurred while saving or processing the video."
+    );
+}
+
+});
+</script>    
+
+</body>
+
+</html>

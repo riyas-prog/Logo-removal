@@ -30,6 +30,7 @@ Colab / notebook usage:
 import argparse
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import cv2
@@ -141,44 +142,567 @@ def build_mask(frame_shape, top_left, size, padding):
 
 def mux_audio(original_path, silent_video_path, output_path):
     probe = subprocess.run(
-        ["ffprobe", "-v", "error", "-select_streams", "a", "-show_entries",
-         "stream=index", "-of", "csv=p=0", str(original_path)],
-        capture_output=True, text=True,
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a",
+            "-show_entries",
+            "stream=index",
+            "-of",
+            "csv=p=0",
+            str(original_path),
+        ],
+        capture_output=True,
+        text=True,
     )
+
     has_audio = probe.stdout.strip() != ""
 
-    if not has_audio:
-        Path(silent_video_path).rename(output_path)
-        return "no_audio_in_source"
-
     cmd = [
-    "ffmpeg", "-y",
-    "-i", str(silent_video_path),
-    "-i", str(original_path),
+        "ffmpeg",
+        "-y",
 
-    "-map", "0:v:0",
-    "-map", "1:a:0?",
+        "-i",
+        str(silent_video_path),
+    ]
 
-    "-c:v", "libx264",
-    "-preset", "slow",
-    "-crf", "18",
-    "-pix_fmt", "yuv420p",
+    if has_audio:
+        cmd += [
+            "-i",
+            str(original_path),
 
-    "-c:a", "aac",
-    "-b:a", "192k",
+            "-map",
+            "0:v:0",
 
-    "-movflags", "+faststart",
-    "-shortest",
+            "-map",
+            "1:a:0?",
+        ]
+    else:
+        cmd += [
+            "-map",
+            "0:v:0",
+        ]
 
-    str(output_path),
-]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    # --------------------------------------------------
+    # WEB / BROWSER COMPATIBLE VIDEO
+    # --------------------------------------------------
+    cmd += [
+        "-c:v",
+        "libx264",
+
+        "-preset",
+        "medium",
+
+        "-crf",
+        "18",
+
+        "-pix_fmt",
+        "yuv420p",
+    ]
+
+    if has_audio:
+        cmd += [
+            "-c:a",
+            "aac",
+
+            "-b:a",
+            "192k",
+        ]
+
+    cmd += [
+        "-movflags",
+        "+faststart",
+    ]
+
+    if has_audio:
+        cmd += [
+            "-shortest",
+        ]
+
+    cmd += [
+        str(output_path),
+    ]
+
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+    )
+
     if result.returncode != 0:
-        return f"audio_mux_failed: {result.stderr[-500:]}"
+        return (
+            "audio_mux_failed: "
+            + result.stderr[-500:]
+        )
 
-    Path(silent_video_path).unlink(missing_ok=True)
-    return "ok"
+    Path(silent_video_path).unlink(
+        missing_ok=True
+    )
 
+    if has_audio:
+        return "ok"
+
+    return "no_audio_in_source"
+
+def adaptive_remove_region(frame, mask, bbox, feather=12):
+    """
+    Remove a selected region using adaptive background reconstruction.
+
+    Optimized version:
+    - Keeps the original full-resolution frame.
+    - Analyses the surrounding background.
+    - Flat/simple backgrounds use matched background colour.
+    - Complex backgrounds use OpenCV inpainting.
+    - Expensive inpainting and blending run only on a padded ROI.
+    """
+
+    x, y, w, h = bbox
+
+    frame_h, frame_w = frame.shape[:2]
+
+    # --------------------------------------------------
+    # CLAMP SELECTED BOX
+    # --------------------------------------------------
+
+    x = max(
+        0,
+        min(int(x), frame_w - 1)
+    )
+
+    y = max(
+        0,
+        min(int(y), frame_h - 1)
+    )
+
+    w = max(
+        1,
+        min(int(w), frame_w - x)
+    )
+
+    h = max(
+        1,
+        min(int(h), frame_h - y)
+    )
+
+    # --------------------------------------------------
+    # SAMPLE SURROUNDING BACKGROUND
+    # --------------------------------------------------
+
+    sample_size = 12
+
+    samples = []
+
+    # Above
+    if y > 0:
+
+        y0 = max(
+            0,
+            y - sample_size
+        )
+
+        region = frame[
+            y0:y,
+            x:min(frame_w, x + w)
+        ]
+
+        if region.size > 0:
+
+            samples.append(
+                region.reshape(-1, 3)
+            )
+
+    # Below
+    if y + h < frame_h:
+
+        y1 = min(
+            frame_h,
+            y + h + sample_size
+        )
+
+        region = frame[
+            y + h:y1,
+            x:min(frame_w, x + w)
+        ]
+
+        if region.size > 0:
+
+            samples.append(
+                region.reshape(-1, 3)
+            )
+
+    # Left
+    if x > 0:
+
+        x0 = max(
+            0,
+            x - sample_size
+        )
+
+        region = frame[
+            y:min(frame_h, y + h),
+            x0:x
+        ]
+
+        if region.size > 0:
+
+            samples.append(
+                region.reshape(-1, 3)
+            )
+
+    # Right
+    if x + w < frame_w:
+
+        x1 = min(
+            frame_w,
+            x + w + sample_size
+        )
+
+        region = frame[
+            y:min(frame_h, y + h),
+            x + w:x1
+        ]
+
+        if region.size > 0:
+
+            samples.append(
+                region.reshape(-1, 3)
+            )
+
+    # --------------------------------------------------
+    # ANALYSE BACKGROUND COMPLEXITY
+    # --------------------------------------------------
+
+    if samples:
+
+        surrounding_pixels = np.concatenate(
+            samples,
+            axis=0
+        )
+
+        background_color = np.median(
+            surrounding_pixels,
+            axis=0
+        ).astype(np.uint8)
+
+        complexity = float(
+            np.mean(
+                np.std(
+                    surrounding_pixels.astype(
+                        np.float32
+                    ),
+                    axis=0
+                )
+            )
+        )
+
+    else:
+
+        background_color = np.array(
+            [0, 0, 0],
+            dtype=np.uint8
+        )
+
+        complexity = 999.0
+
+    # --------------------------------------------------
+    # CREATE PADDED ROI
+    # --------------------------------------------------
+    # Extra surrounding pixels give inpainting enough
+    # neighbouring background information.
+
+    roi_padding = max(
+    16,
+    int(feather)
+)
+
+    roi_x0 = max(
+        0,
+        x - roi_padding
+    )
+
+    roi_y0 = max(
+        0,
+        y - roi_padding
+    )
+
+    roi_x1 = min(
+        frame_w,
+        x + w + roi_padding
+    )
+
+    roi_y1 = min(
+        frame_h,
+        y + h + roi_padding
+    )
+
+    # Copy only the small working area.
+    original_roi = frame[
+        roi_y0:roi_y1,
+        roi_x0:roi_x1
+    ].copy()
+
+    roi_mask = mask[
+        roi_y0:roi_y1,
+        roi_x0:roi_x1
+    ].copy()
+
+    # Coordinates of selected box inside ROI.
+    local_x = x - roi_x0
+    local_y = y - roi_y0
+
+    # --------------------------------------------------
+    # FLAT BACKGROUND
+    # --------------------------------------------------
+
+    if complexity < 28:
+
+     repaired_roi = original_roi.copy()
+
+    # --------------------------------------------------
+    # LOCAL PLAIN-BACKGROUND RECONSTRUCTION
+    # --------------------------------------------------
+    # Instead of filling the whole watermark area with
+    # one global median colour, estimate the background
+    # from the nearest clean pixels around each edge.
+    # This helps preserve small lighting/colour gradients.
+
+    roi_h, roi_w = original_roi.shape[:2]
+
+    x0 = local_x
+    y0 = local_y
+    x1 = min(roi_w, local_x + w)
+    y1 = min(roi_h, local_y + h)
+
+    patch_h = y1 - y0
+    patch_w = x1 - x0
+
+    # Collect representative colours immediately outside
+    # the selected watermark box.
+    top_color = None
+    bottom_color = None
+    left_color = None
+    right_color = None
+
+    edge_sample = 6
+
+    # Top
+    if y0 > 0:
+
+        sy0 = max(
+            0,
+            y0 - edge_sample
+        )
+
+        top_strip = original_roi[
+            sy0:y0,
+            x0:x1
+        ]
+
+        if top_strip.size > 0:
+            top_color = np.median(
+                top_strip.reshape(-1, 3),
+                axis=0
+            )
+
+    # Bottom
+    if y1 < roi_h:
+
+        sy1 = min(
+            roi_h,
+            y1 + edge_sample
+        )
+
+        bottom_strip = original_roi[
+            y1:sy1,
+            x0:x1
+        ]
+
+        if bottom_strip.size > 0:
+            bottom_color = np.median(
+                bottom_strip.reshape(-1, 3),
+                axis=0
+            )
+
+    # Left
+    if x0 > 0:
+
+        sx0 = max(
+            0,
+            x0 - edge_sample
+        )
+
+        left_strip = original_roi[
+            y0:y1,
+            sx0:x0
+        ]
+
+        if left_strip.size > 0:
+            left_color = np.median(
+                left_strip.reshape(-1, 3),
+                axis=0
+            )
+
+    # Right
+    if x1 < roi_w:
+
+        sx1 = min(
+            roi_w,
+            x1 + edge_sample
+        )
+
+        right_strip = original_roi[
+            y0:y1,
+            x1:sx1
+        ]
+
+        if right_strip.size > 0:
+            right_color = np.median(
+                right_strip.reshape(-1, 3),
+                axis=0
+            )
+
+    # --------------------------------------------------
+    # BUILD A SMOOTH COLOUR GRADIENT
+    # --------------------------------------------------
+
+    if (
+        top_color is not None and
+        bottom_color is not None
+    ):
+
+        vertical = np.linspace(
+            top_color,
+            bottom_color,
+            patch_h,
+            dtype=np.float32
+        )
+
+        vertical = np.repeat(
+            vertical[:, None, :],
+            patch_w,
+            axis=1
+        )
+
+    else:
+
+        vertical = np.full(
+            (
+                patch_h,
+                patch_w,
+                3
+            ),
+            background_color,
+            dtype=np.float32
+        )
+
+    if (
+        left_color is not None and
+        right_color is not None
+    ):
+
+        horizontal = np.linspace(
+            left_color,
+            right_color,
+            patch_w,
+            dtype=np.float32
+        )
+
+        horizontal = np.repeat(
+            horizontal[None, :, :],
+            patch_h,
+            axis=0
+        )
+
+        reconstructed_patch = (
+            vertical * 0.5 +
+            horizontal * 0.5
+        )
+
+    else:
+
+        reconstructed_patch = vertical
+
+    reconstructed_patch = np.clip(
+        reconstructed_patch,
+        0,
+        255
+    ).astype(np.uint8)
+
+    repaired_roi[
+        y0:y1,
+        x0:x1
+   ] = reconstructed_patch
+
+    # --------------------------------------------------
+    # COMPLEX BACKGROUND
+    # --------------------------------------------------
+
+    repaired_roi = cv2.inpaint(
+        original_roi,
+        roi_mask,
+        3,
+        cv2.INPAINT_NS
+    )
+
+    # --------------------------------------------------
+    # FEATHER MASK EDGES INSIDE ROI ONLY
+    # --------------------------------------------------
+
+    feather_size = max(
+        3,
+        int(feather)
+    )
+
+    if feather_size % 2 == 0:
+        feather_size += 1
+
+    soft_mask = cv2.GaussianBlur(
+        roi_mask,
+        (
+            feather_size,
+            feather_size
+        ),
+        0
+    )
+
+    alpha = (
+        soft_mask.astype(
+            np.float32
+        ) / 255.0
+    )
+
+    alpha = alpha[..., None]
+
+    # --------------------------------------------------
+    # BLEND ONLY THE ROI
+    # --------------------------------------------------
+
+    blended_roi = (
+        repaired_roi.astype(np.float32) * alpha
+        +
+        original_roi.astype(np.float32) * (1.0 - alpha)
+    )
+
+    blended_roi = np.clip(
+        blended_roi,
+        0,
+        255
+    ).astype(np.uint8)
+
+    # --------------------------------------------------
+    # PUT REPAIRED ROI BACK INTO FULL FRAME
+    # --------------------------------------------------
+
+    output_frame = frame.copy()
+
+    output_frame[
+        roi_y0:roi_y1,
+        roi_x0:roi_x1
+    ] = blended_roi
+
+    return output_frame
 
 def process_video(
     input_path,
@@ -216,7 +740,10 @@ inpaint_method="telea",
     locked_position_samples=25,
     fully_auto=False,
     fully_auto_padding=22,
-    log=print,
+manual_box=None,
+log=print,
+progress_callback=None,
+
 ):
     """
     Processes a single video. Returns a small dict report so batch_process
@@ -265,16 +792,33 @@ inpaint_method="telea",
     detect_method = None
     detect_confidence = None
 
-    if fully_auto:
+        # ---------------------------------------------------------
+    # Manual review mode
+    # ---------------------------------------------------------
+    if manual_box is not None:
+
+        fixed_bbox = (
+            max(0, int(manual_box["x"])),
+            max(0, int(manual_box["y"])),
+            int(manual_box["width"]),
+            int(manual_box["height"])
+        )
+
+        detect_method = "manual_review"
+        detect_confidence = 1.0
+
+    elif fully_auto:
         print("ENTERED FULLY_AUTO")
         log("STEP 1: fully_auto entered")
         ret, first_frame = cap.read()
         log("STEP 2: first frame read")
+        print("ENTERED FULLY_AUTO")
 
         if not ret:
             raise RuntimeError("Could not read first frame.")
 
         score, name, x, y, w, h = detect_best_region(first_frame)
+
         print("=" * 60)
         print("V2 DETECTED")
         print(f"Score : {score}")
@@ -297,37 +841,30 @@ inpaint_method="telea",
 
         cap.release()
         cap = cv2.VideoCapture(str(input_path))
+
     elif locked_position:
         if logo_path is None:
-            raise ValueError("locked_position=True requires logo_path (a crop of the logo).")
-        cap.release()
-        fixed_bbox = detect_locked_position(
-            input_path, logo_path, n_samples=locked_position_samples, log=log,
-        )
-        if fixed_bbox is None:
-            raise RuntimeError(
-                "Could not lock a reliable position for this logo. Try a tighter/cleaner "
-                "logo crop, or fall back to per-frame matching (locked_position=False)."
+            raise ValueError(
+                "locked_position=True requires logo_path (a crop of the logo)."
             )
-        log(f"  [locked-position] watermark region: {fixed_bbox} (x, y, w, h)")
-        cap = cv2.VideoCapture(str(input_path))
-    elif auto_detect:
-        cap.release()  # detect_static_region opens its own capture
-        fixed_bbox = detect_static_region(
-            str(input_path),
-            n_samples=120,
-            variance_threshold=22.0,
-            min_area_frac=0.0002,
-            max_area_frac=0.15,
-            border_margin_frac=0.20,
+
+        cap.release()
+
+        fixed_bbox = detect_locked_position(
+            input_path,
+            logo_path,
+            n_samples=locked_position_samples,
             log=log,
         )
+
         if fixed_bbox is None:
             raise RuntimeError(
-                "Auto-detect found no watermark-like static region in this video. "
-                "Try lowering --auto-detect-variance-threshold, or use a manual logo crop instead."
+                "Could not lock a reliable position for this logo. "
+                "Try a tighter/cleaner logo crop, or fall back to "
+                "per-frame matching (locked_position=False)."
             )
-        log(f"  [auto-detect] watermark region: {fixed_bbox} (x, y, w, h)")
+
+        log(f"  [locked-position] watermark region: {fixed_bbox} (x, y, w, h)")
         cap = cv2.VideoCapture(str(input_path))
     else:
         if logo_path is None:
@@ -343,27 +880,58 @@ inpaint_method="telea",
     inpaint_flag = cv2.INPAINT_TELEA if inpaint_method == "telea" else cv2.INPAINT_NS
 
     last_match = bbox_to_match_format(fixed_bbox) if fixed_bbox is not None else None
+
+    # Use manually selected review box if provided
+    if manual_box is not None:
+        last_match = (
+            (
+                max(0, int(manual_box["x"])),
+                max(0, int(manual_box["y"]))
+            ),
+            (
+                max(1, int(manual_box["width"])),
+                max(1, int(manual_box["height"]))
+            )
+        )
+
     frame_idx = 0
     matches_found = 0
+    # Performance profiling
+    total_mask_time = 0.0
+    total_remove_time = 0.0
+    total_write_time = 0.0
+
+    log("DEBUG: Starting frame loop")
 
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        if not auto_detect and not locked_position and not fully_auto:
+        # Decide whether to run template matching on this frame
+        if (
+            manual_box is None
+            and not auto_detect
+            and not locked_position
+            and not fully_auto
+        ):
             do_detect = (frame_idx % sample_every == 0) or (last_match is None)
+
             if do_detect:
                 frame_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 result = match_logo(frame_gray, logo_gray, scales)
+
                 if result is not None:
                     top_left, size, score = result
+
                     if score >= threshold:
                         last_match = (top_left, size)
                         matches_found += 1
         else:
-            matches_found += 1  # fixed region applies to every frame by definition
+            # fixed region applies to every frame by definition
+            matches_found += 1
 
+        # Render preview or perform inpainting per frame
         if preview:
             out_frame = frame.copy()
             if last_match is not None:
@@ -371,15 +939,74 @@ inpaint_method="telea",
                 cv2.rectangle(out_frame, (x, y), (x + lw, y + lh), (0, 0, 255), 2)
         else:
             if last_match is not None:
-                mask, _ = build_mask(frame.shape, last_match[0], last_match[1], padding)
-                out_frame = cv2.inpaint(frame, mask, inpaint_radius, inpaint_flag)
+                # --------------------------------------------------
+                # MEASURE MASK CREATION
+                # --------------------------------------------------
+                mask_start = time.perf_counter()
+                mask, _ = build_mask(
+                    frame.shape,
+                    last_match[0],
+                    last_match[1],
+                    padding
+                )
+                total_mask_time += (
+                time.perf_counter() - mask_start
+                )
+                # --------------------------------------------------
+                # MEASURE ADAPTIVE REMOVAL
+                # --------------------------------------------------
+
+                (x, y), (lw, lh) = last_match
+                remove_start = time.perf_counter()
+                out_frame = adaptive_remove_region(
+                    frame=frame,
+                    mask=mask,
+                    bbox=(x, y, lw, lh),
+                    feather=15,
+                )
+
+                total_remove_time += (
+                    time.perf_counter() - remove_start
+                )
+
             else:
                 out_frame = frame
 
+        write_start = time.perf_counter()
         writer.write(out_frame)
         frame_idx += 1
-        if progress_every and frame_idx % progress_every == 0:
-            log(f"    ...{frame_idx}/{total_frames} frames")
+        # --------------------------------------------------
+        # REPORT LIVE FRAME PROGRESS
+        # --------------------------------------------------
+        if progress_callback is not None:
+            try:
+                progress_callback(frame_idx, total_frames)
+            except Exception as callback_error:
+                log(
+                    f"Progress callback error: "
+                    f"{callback_error}"
+                )
+                if progress_every and frame_idx % progress_every == 0:
+                    log(
+                        f"    ...{frame_idx}/{total_frames} frames"
+    )
+
+    log("DEBUG: Finished writing frames")
+    log("=" * 60)
+    log("PERFORMANCE PROFILE")
+    log(f"Frames processed : {frame_idx}")
+    log(f"Mask creation    : {total_mask_time:.2f} seconds")
+    log(f"Adaptive removal : {total_remove_time:.2f} seconds")
+    log(f"Video writing    : {total_write_time:.2f} seconds")
+
+    measured_total = (
+        total_mask_time +
+        total_remove_time +
+        total_write_time
+    )
+
+    log(f"Measured total   : {measured_total:.2f} seconds")
+    log("=" * 60)
 
     cap.release()
     writer.release()
@@ -404,16 +1031,20 @@ inpaint_method="telea",
         report["status"] = "preview_done"
         return report
 
+    log("DEBUG: Starting audio mux")
+
     audio_status = mux_audio(input_path, tmp_video, output_path)
     report["audio"] = audio_status
+
     if audio_status not in ("ok", "no_audio_in_source"):
         report["status"] = "audio_failed"
 
     if detect_rate < 0.3:
         report["status"] = "low_detection_warning"
 
-    return report
+    log("DEBUG: Returning report")
 
+    return report
 
 # ---------------------------------------------------------------------------
 # Batch logic

@@ -1,2 +1,40 @@
-watermark_team_tool/.venv/
+# Python
 .venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Runtime/generated folders
+uploads/
+**/uploads/
+outputs/
+**/outputs/
+jobs/
+**/jobs/
+frames/
+**/frames/
+
+# Generated media
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.zip
+
+# Generated/test images
+average.png
+best_region.png
+edges.png
+test.jpg
+tst.png
+
+# Backups / broken copies
+*_backup.py
+*_broken.py
+review_old.html
+
+# Editor
+.vscode/
+**/.vscode/
