@@ -452,199 +452,197 @@ def adaptive_remove_region(frame, mask, bbox, feather=12):
     local_x = x - roi_x0
     local_y = y - roi_y0
 
-    # --------------------------------------------------
+        # --------------------------------------------------
     # FLAT BACKGROUND
     # --------------------------------------------------
 
     if complexity < 28:
 
-     repaired_roi = original_roi.copy()
+        repaired_roi = original_roi.copy()
 
-    # --------------------------------------------------
-    # LOCAL PLAIN-BACKGROUND RECONSTRUCTION
-    # --------------------------------------------------
-    # Instead of filling the whole watermark area with
-    # one global median colour, estimate the background
-    # from the nearest clean pixels around each edge.
-    # This helps preserve small lighting/colour gradients.
+        # --------------------------------------------------
+        # LOCAL PLAIN-BACKGROUND RECONSTRUCTION
+        # --------------------------------------------------
+        # Estimate the background from the nearest clean
+        # pixels around the selected watermark area.
 
-    roi_h, roi_w = original_roi.shape[:2]
+        roi_h, roi_w = original_roi.shape[:2]
 
-    x0 = local_x
-    y0 = local_y
-    x1 = min(roi_w, local_x + w)
-    y1 = min(roi_h, local_y + h)
+        x0 = local_x
+        y0 = local_y
+        x1 = min(roi_w, local_x + w)
+        y1 = min(roi_h, local_y + h)
 
-    patch_h = y1 - y0
-    patch_w = x1 - x0
+        patch_h = y1 - y0
+        patch_w = x1 - x0
 
-    # Collect representative colours immediately outside
-    # the selected watermark box.
-    top_color = None
-    bottom_color = None
-    left_color = None
-    right_color = None
+        top_color = None
+        bottom_color = None
+        left_color = None
+        right_color = None
 
-    edge_sample = 6
+        edge_sample = 6
 
-    # Top
-    if y0 > 0:
+        # Top
+        if y0 > 0:
 
-        sy0 = max(
-            0,
-            y0 - edge_sample
-        )
-
-        top_strip = original_roi[
-            sy0:y0,
-            x0:x1
-        ]
-
-        if top_strip.size > 0:
-            top_color = np.median(
-                top_strip.reshape(-1, 3),
-                axis=0
+            sy0 = max(
+                0,
+                y0 - edge_sample
             )
 
-    # Bottom
-    if y1 < roi_h:
+            top_strip = original_roi[
+                sy0:y0,
+                x0:x1
+            ]
 
-        sy1 = min(
-            roi_h,
-            y1 + edge_sample
-        )
+            if top_strip.size > 0:
+                top_color = np.median(
+                    top_strip.reshape(-1, 3),
+                    axis=0
+                )
 
-        bottom_strip = original_roi[
-            y1:sy1,
-            x0:x1
-        ]
+        # Bottom
+        if y1 < roi_h:
 
-        if bottom_strip.size > 0:
-            bottom_color = np.median(
-                bottom_strip.reshape(-1, 3),
-                axis=0
+            sy1 = min(
+                roi_h,
+                y1 + edge_sample
             )
 
-    # Left
-    if x0 > 0:
+            bottom_strip = original_roi[
+                y1:sy1,
+                x0:x1
+            ]
 
-        sx0 = max(
-            0,
-            x0 - edge_sample
-        )
+            if bottom_strip.size > 0:
+                bottom_color = np.median(
+                    bottom_strip.reshape(-1, 3),
+                    axis=0
+                )
 
-        left_strip = original_roi[
-            y0:y1,
-            sx0:x0
-        ]
+        # Left
+        if x0 > 0:
 
-        if left_strip.size > 0:
-            left_color = np.median(
-                left_strip.reshape(-1, 3),
-                axis=0
+            sx0 = max(
+                0,
+                x0 - edge_sample
             )
 
-    # Right
-    if x1 < roi_w:
+            left_strip = original_roi[
+                y0:y1,
+                sx0:x0
+            ]
 
-        sx1 = min(
-            roi_w,
-            x1 + edge_sample
-        )
+            if left_strip.size > 0:
+                left_color = np.median(
+                    left_strip.reshape(-1, 3),
+                    axis=0
+                )
 
-        right_strip = original_roi[
-            y0:y1,
-            x1:sx1
-        ]
+        # Right
+        if x1 < roi_w:
 
-        if right_strip.size > 0:
-            right_color = np.median(
-                right_strip.reshape(-1, 3),
-                axis=0
+            sx1 = min(
+                roi_w,
+                x1 + edge_sample
             )
 
-    # --------------------------------------------------
-    # BUILD A SMOOTH COLOUR GRADIENT
-    # --------------------------------------------------
+            right_strip = original_roi[
+                y0:y1,
+                x1:sx1
+            ]
 
-    if (
-        top_color is not None and
-        bottom_color is not None
-    ):
+            if right_strip.size > 0:
+                right_color = np.median(
+                    right_strip.reshape(-1, 3),
+                    axis=0
+                )
 
-        vertical = np.linspace(
-            top_color,
-            bottom_color,
-            patch_h,
-            dtype=np.float32
-        )
+        # --------------------------------------------------
+        # BUILD A SMOOTH COLOUR GRADIENT
+        # --------------------------------------------------
 
-        vertical = np.repeat(
-            vertical[:, None, :],
-            patch_w,
-            axis=1
-        )
+        if (
+            top_color is not None and
+            bottom_color is not None
+        ):
 
-    else:
-
-        vertical = np.full(
-            (
+            vertical = np.linspace(
+                top_color,
+                bottom_color,
                 patch_h,
+                dtype=np.float32
+            )
+
+            vertical = np.repeat(
+                vertical[:, None, :],
                 patch_w,
-                3
-            ),
-            background_color,
-            dtype=np.float32
-        )
+                axis=1
+            )
 
-    if (
-        left_color is not None and
-        right_color is not None
-    ):
+        else:
 
-        horizontal = np.linspace(
-            left_color,
-            right_color,
-            patch_w,
-            dtype=np.float32
-        )
+            vertical = np.full(
+                (
+                    patch_h,
+                    patch_w,
+                    3
+                ),
+                background_color,
+                dtype=np.float32
+            )
 
-        horizontal = np.repeat(
-            horizontal[None, :, :],
-            patch_h,
-            axis=0
-        )
+        if (
+            left_color is not None and
+            right_color is not None
+        ):
 
-        reconstructed_patch = (
-            vertical * 0.5 +
-            horizontal * 0.5
-        )
+            horizontal = np.linspace(
+                left_color,
+                right_color,
+                patch_w,
+                dtype=np.float32
+            )
 
-    else:
+            horizontal = np.repeat(
+                horizontal[None, :, :],
+                patch_h,
+                axis=0
+            )
 
-        reconstructed_patch = vertical
+            reconstructed_patch = (
+                vertical * 0.5 +
+                horizontal * 0.5
+            )
 
-    reconstructed_patch = np.clip(
-        reconstructed_patch,
-        0,
-        255
-    ).astype(np.uint8)
+        else:
 
-    repaired_roi[
-        y0:y1,
-        x0:x1
-   ] = reconstructed_patch
+            reconstructed_patch = vertical
+
+        reconstructed_patch = np.clip(
+            reconstructed_patch,
+            0,
+            255
+        ).astype(np.uint8)
+
+        repaired_roi[
+            y0:y1,
+            x0:x1
+        ] = reconstructed_patch
 
     # --------------------------------------------------
     # COMPLEX BACKGROUND
     # --------------------------------------------------
 
-    repaired_roi = cv2.inpaint(
-        original_roi,
-        roi_mask,
-        3,
-        cv2.INPAINT_NS
-    )
+    else:
+
+        repaired_roi = cv2.inpaint(
+            original_roi,
+            roi_mask,
+            3,
+            cv2.INPAINT_NS
+        )
 
     # --------------------------------------------------
     # FEATHER MASK EDGES INSIDE ROI ONLY
