@@ -855,12 +855,20 @@ def _run_batch_process(batch_id):
                 progress["videos"][index]["status"] = "completed"
                 progress["completed"] = index + 1
         except Exception as exc:
-            print(f"ERROR PROCESSING {job_id}: {exc}")
+            print(
+                f"ERROR PROCESSING {job_id}: "
+                f"{type(exc).__name__}: {exc}",
+                flush=True
+            )
+
+            traceback.print_exc()
 
             results.append({
                 "job_id": job_id,
                 "ok": False,
-                "error": str(exc)
+                "error": (
+                    f"{type(exc).__name__}: {exc}"
+                )
             })
 
             with BATCH_PROGRESS_LOCK:
