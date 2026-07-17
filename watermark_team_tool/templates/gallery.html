@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Gallery</title>
+</head>
+
+<body>
+
+<h1>Video Gallery</h1>
+
+{% for item in gallery %}
+
+<div style="margin-bottom:30px;">
+
+<img src="{{ url_for('static', filename='thumbnails/' + item.thumbnail) }}"
+     width="250">
+
+<br><br>
+
+<b>{{ item.name }}</b>
+
+<br><br>
+
+<button>Review</button>
+
+</div>
+
+<hr>
+
+{% endfor %}
+
+</body>
+
+</html>

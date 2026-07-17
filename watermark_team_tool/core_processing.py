@@ -129,14 +129,48 @@ def match_logo(frame_gray, logo_gray, scales):
 
 def build_mask(frame_shape, top_left, size, padding):
     h, w = frame_shape[:2]
+
     x, y = top_left
     lw, lh = size
-    x0 = max(0, x - padding)
-    y0 = max(0, y - padding)
-    x1 = min(w, x + lw + padding)
-    y1 = min(h, y + lh + padding)
+
+    # Slightly expand the selected region
+    expand = 3
+
+    x0 = max(0, x - padding - expand)
+    y0 = max(0, y - padding - expand)
+    x1 = min(w, x + lw + padding + expand)
+    y1 = min(h, y + lh + padding + expand)
+
     mask = np.zeros((h, w), dtype=np.uint8)
-    mask[y0:y1, x0:x1] = 255
+
+    # Draw a filled rectangle
+    cv2.rectangle(
+        mask,
+        (x0, y0),
+        (x1, y1),
+        255,
+        -1
+    )
+
+    # Smooth rectangle corners
+    kernel = cv2.getStructuringElement(
+        cv2.MORPH_ELLIPSE,
+        (7, 7)
+    )
+
+    mask = cv2.morphologyEx(
+        mask,
+        cv2.MORPH_CLOSE,
+        kernel
+    )
+
+    # Soft edges
+    mask = cv2.GaussianBlur(
+        mask,
+        (15, 15),
+        0
+    )
+
     return mask, (x0, y0, x1, y1)
 
 
@@ -294,8 +328,15 @@ def mux_audio(original_path, silent_video_path, output_path):
         )
 
         raise RuntimeError(
-            "FFmpeg final mux failed:\n"
-            + result.stderr[-2000:]
+            f"""
+            FFmpeg failed
+
+            Return code: {result.returncode}
+
+            STDOUT: {result.stdout}
+
+            STDERR: {result.stderr}
+            """
         )
 
     # --------------------------------------------------
@@ -772,12 +813,31 @@ def adaptive_remove_region(frame, mask, bbox, feather=15):
 
     else:
 
-        repaired_roi = cv2.inpaint(
+
+        # Pass 1 - Telea
+        telea = cv2.inpaint(
+            original_roi,
+            roi_mask,
+            3,
+             cv2.INPAINT_TELEA
+        )
+        
+        # Pass 2 - Navier-Stokes
+        ns = cv2.inpaint(
             original_roi,
             roi_mask,
             3,
             cv2.INPAINT_NS
         )
+
+        # Blend both repairs
+        repaired_roi = cv2.addWeighted(
+                telea,
+                 0.6,
+                  ns,
+                   0.4,
+                   0
+)
 
     # --------------------------------------------------
     # FEATHER MASK EDGES INSIDE ROI ONLY
@@ -809,20 +869,88 @@ def adaptive_remove_region(frame, mask, bbox, feather=15):
     alpha = alpha[..., None]
 
     # --------------------------------------------------
-    # BLEND ONLY THE ROI
+    # EDGE-AWARE BLENDING
     # --------------------------------------------------
 
-    blended_roi = (
-        repaired_roi.astype(np.float32) * alpha
-        +
-        original_roi.astype(np.float32) * (1.0 - alpha)
-    )
+    gray = cv2.cvtColor(original_roi, cv2.COLOR_BGR2GRAY)
 
+    edges = cv2.Canny(gray, 60, 120)
+
+    edges = cv2.GaussianBlur(edges, (5, 5), 0)
+
+    edge_weight = 1.0 - (edges.astype(np.float32) / 255.0)
+
+    edge_weight = edge_weight[..., None]
+
+    alpha = alpha * edge_weight + alpha * 0.35
+
+    alpha = np.clip(alpha, 0.0, 1.0)
+
+    blended_roi = (
+         repaired_roi.astype(np.float32) * alpha +
+         original_roi.astype(np.float32) * (1.0 - alpha)
+)
+    
     blended_roi = np.clip(
         blended_roi,
         0,
         255
-    ).astype(np.uint8)
+        ).astype(np.uint8)
+    
+    # --------------------------------------------------
+    # LOCAL TEXTURE MATCHING
+    # --------------------------------------------------
+
+    # Estimate surrounding texture strength
+    gray = cv2.cvtColor(original_roi, cv2.COLOR_BGR2GRAY)
+
+    lap = cv2.Laplacian(gray, cv2.CV_32F)
+
+    texture_strength = np.std(lap)
+
+    # Very subtle texture generation
+    noise = np.random.normal(
+         0,
+             texture_strength * 0.08,
+             blended_roi.shape
+             ).astype(np.float32)
+    
+    textured = blended_roi.astype(np.float32) + noise
+    blended_roi = np.clip(
+        textured,
+        0,
+    255
+).astype(np.uint8)
+
+
+    # --------------------------------------------------
+    # COLOR HARMONIZATION
+    # ---------------------------------------------------
+
+    mask_bool = roi_mask > 0
+
+    if np.any(mask_bool):
+
+        repaired_pixels = blended_roi[mask_bool].astype(np.float32)
+
+        surrounding_pixels = original_roi[~mask_bool].astype(np.float32)
+
+        if len(surrounding_pixels) > 100:
+
+            target_mean = surrounding_pixels.mean(axis=0)
+            current_mean = repaired_pixels.mean(axis=0)
+
+            correction = target_mean - current_mean
+
+            repaired_pixels += correction * 0.35
+            
+            repaired_pixels = np.clip(
+                repaired_pixels,
+                0,
+                255
+            )
+
+            blended_roi[mask_bool] = repaired_pixels.astype(np.uint8)
 
     # --------------------------------------------------
     # PUT REPAIRED ROI BACK INTO FULL FRAME

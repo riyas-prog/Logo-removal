@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Watermark Review</title>
+
+    <link rel="stylesheet" href="/static/review.css">
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>🖼 Watermark Review</h1>
+
+    <div class="viewer">
+
+        <img
+            id="reviewImage"
+            src="{{ image_url }}"
+            draggable="false"
+        >
+
+        <div id="selectionBox"></div>
+
+    </div>
+
+    <div class="coords">
+
+        X :
+        <span id="x">0</span>
+
+        &nbsp;&nbsp;
+
+        Y :
+        <span id="y">0</span>
+
+        &nbsp;&nbsp;
+
+        W :
+        <span id="w">0</span>
+
+        &nbsp;&nbsp;
+
+        H :
+        <span id="h">0</span>
+
+    </div>
+
+    <div class="buttons">
+
+        <button id="saveBtn">
+
+            💾 Save Box
+
+        </button>
+
+        <button id="processBtn">
+
+            ▶ Process Video
+
+        </button>
+
+    </div>
+
+</div>
+
+<script>
+
+const JOB_ID="{{ job.job_id }}";
+
+</script>
+
+<script src="/static/review.js"></script>
+
+</body>
+</html>
