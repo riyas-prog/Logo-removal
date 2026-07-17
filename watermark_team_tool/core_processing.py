@@ -270,16 +270,8 @@ def mux_audio(original_path, silent_video_path, output_path):
 
     cmd += [
         "-c:v",
-        "libx264",
+    "copy",
 
-        "-preset",
-        "medium",
-
-        "-crf",
-        "18",
-
-        "-pix_fmt",
-        "yuv420p",
     ]
 
     if has_audio:
