@@ -32,6 +32,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from background_builder import BackgroundBuilder
 
 import cv2
 import numpy as np
@@ -422,7 +423,13 @@ def mux_audio(original_path, silent_video_path, output_path):
     return "no_audio_in_source"
 
 
-def adaptive_remove_region(frame, mask, bbox, feather=15):
+def adaptive_remove_region(
+    frame,
+    mask,
+    bbox,
+    feather=15,
+    background_roi=None,
+):
     """
     Remove a selected region using adaptive background reconstruction.
 
@@ -808,18 +815,34 @@ def adaptive_remove_region(frame, mask, bbox, feather=15):
         ] = reconstructed_patch
 
     # --------------------------------------------------
-    # COMPLEX BACKGROUND
+    # TRY RECONSTRUCTED BACKGROUND FIRST
     # --------------------------------------------------
 
+    if background_roi is not None:
+
+        if background_roi.shape == original_roi.shape:
+
+            repaired_roi = background_roi.copy()
+
+        else:
+
+            repaired_roi = None
     else:
 
+        repaired_roi = None
+
+    # --------------------------------------------------
+    # COMPLEX BACK+GROUND
+    # --------------------------------------------------
+
+    if repaired_roi is None:
 
         # Pass 1 - Telea
         telea = cv2.inpaint(
             original_roi,
             roi_mask,
             3,
-             cv2.INPAINT_TELEA
+            cv2.INPAINT_TELEA
         )
         
         # Pass 2 - Navier-Stokes
@@ -832,12 +855,12 @@ def adaptive_remove_region(frame, mask, bbox, feather=15):
 
         # Blend both repairs
         repaired_roi = cv2.addWeighted(
-                telea,
-                 0.6,
-                  ns,
-                   0.4,
-                   0
-)
+            telea,
+            0.6,
+            ns,
+            0.4,
+            0
+        )
 
     # --------------------------------------------------
     # FEATHER MASK EDGES INSIDE ROI ONLY
@@ -1034,6 +1057,7 @@ progress_callback=None,
     print("=" * 60)
 
     cap = cv2.VideoCapture(str(input_path))
+    background_builder = BackgroundBuilder(max_frames=30)
 
     print("CAP OPENED :", cap.isOpened())
 
@@ -1218,18 +1242,39 @@ progress_callback=None,
                 # --------------------------------------------------
 
                 (x, y), (lw, lh) = last_match
+
+                # Collect ROI for background learning
+                # Use the current match bbox when no explicit bbox is available.
+                w, h = lw, lh
+
+                roi_padding = 20
+
+                roi_x0 = max(0, x - roi_padding)
+                roi_y0 = max(0, y - roi_padding)
+                roi_x1 = min(frame.shape[1], x + w + roi_padding)
+                roi_y1 = min(frame.shape[0], y + h + roi_padding)
+
+                roi = frame[roi_y0:roi_y1, roi_x0:roi_x1]
+
+                background_builder.add(roi)
+
+                # Build only after we have enough samples
+                background_roi = None
+                if len(background_builder.frames) >= 15:
+                    background_roi = background_builder.build()
+            
                 remove_start = time.perf_counter()
                 out_frame = adaptive_remove_region(
                     frame=frame,
                     mask=mask,
                     bbox=(x, y, lw, lh),
                     feather=15,
+                    background_roi=background_roi,
                 )
 
                 total_remove_time += (
                     time.perf_counter() - remove_start
                 )
-
             else:
                 out_frame = frame
 
