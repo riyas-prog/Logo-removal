@@ -36,10 +36,13 @@ from background_builder import BackgroundBuilder
 
 import cv2
 import numpy as np
+from smart_mask import refine_mask
+from comparison_video import create_side_by_side
 
 from auto_detect import detect_static_region, bbox_to_match_format, detect_locked_position
 from logo_detector_v2 import detect_best_region
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
+USE_BACKGROUND_BUILDER = False
 
 
 # ---------------------------------------------------------------------------
@@ -1057,7 +1060,9 @@ progress_callback=None,
     print("=" * 60)
 
     cap = cv2.VideoCapture(str(input_path))
-    background_builder = BackgroundBuilder(max_frames=30)
+    background_builder = None
+    if USE_BACKGROUND_BUILDER:
+       background_builder = BackgroundBuilder(max_frames=30)
 
     print("CAP OPENED :", cap.isOpened())
 
@@ -1234,8 +1239,9 @@ progress_callback=None,
                     last_match[1],
                     padding
                 )
+                mask = refine_mask(frame, mask)
                 total_mask_time += (
-                time.perf_counter() - mask_start
+                    time.perf_counter() - mask_start
                 )
                 # --------------------------------------------------
                 # MEASURE ADAPTIVE REMOVAL
@@ -1256,12 +1262,12 @@ progress_callback=None,
 
                 roi = frame[roi_y0:roi_y1, roi_x0:roi_x1]
 
-                background_builder.add(roi)
-
-                # Build only after we have enough samples
                 background_roi = None
-                if len(background_builder.frames) >= 15:
-                    background_roi = background_builder.build()
+                if background_builder is not None:
+                    background_builder.add(roi)
+                    # Build only after we have enough samples
+                    if background_builder.count() >= 15:
+                        background_roi = background_builder.build()
             
                 remove_start = time.perf_counter()
                 out_frame = adaptive_remove_region(
@@ -1315,7 +1321,7 @@ progress_callback=None,
     log("=" * 60)
 
     cap.release()
-    writer.release()
+    
 
     sampled = max(1, frame_idx // sample_every + 1) if (not auto_detect and not locked_position and not fully_auto) else max(1, frame_idx)
     detect_rate = matches_found / sampled
@@ -1337,22 +1343,40 @@ progress_callback=None,
         report["status"] = "preview_done"
         return report
 
-    log("DEBUG: Starting audio mux")
+    log("DEBUG: writer.release() Starting audio mux")
     audio_status = mux_audio(
-    input_path,
-    tmp_video,
-    output_path
-)
+        input_path,
+        tmp_video,
+        output_path,
+    )
     report["audio"] = audio_status
-    log(
-    f"DEBUG: Final MP4 validated successfully: "
-    f"{output_path}"
-)
+    log(f"DEBUG: Final MP4 validated successfully: {output_path}")
     if detect_rate < 0.3:
-
-    
         report["status"] = "low_detection_warning"
 
+    # ----------------------------------------------------
+    # Create Before/After comparison video
+    # ----------------------------------------------------
+    try:
+        comparison_output = str(output_path).replace(
+            ".mp4",
+            "_comparison.mp4",
+        )
+        create_side_by_side(
+            str(input_path),
+            str(output_path),
+            comparison_output,
+        )
+
+        report["comparison"] = comparison_output
+        log(f"Comparison video created: {comparison_output}")
+
+    except Exception as e:
+        log(f"Comparison video failed: {e}")
+
+    if detect_rate < 0.3:
+        report["status"] = "low_detection_warning"
+            
     log("DEBUG: Returning report")
 
     return report
