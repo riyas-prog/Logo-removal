@@ -1060,15 +1060,9 @@ progress_callback=None,
     print("=" * 60)
 
     cap = cv2.VideoCapture(str(input_path))
-    background_builder = None
-    if USE_BACKGROUND_BUILDER:
-       background_builder = BackgroundBuilder(max_frames=30)
-
-    print("CAP OPENED :", cap.isOpened())
 
     if not cap.isOpened():
-        raise RuntimeError(f"Could not open video: {input_path}")
-
+        raise RuntimeError(f"Cannot open video: {input_path}")
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -1166,6 +1160,7 @@ progress_callback=None,
     tmp_video = str(Path(output_path).with_suffix("")) + "_silent_tmp.mp4"
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(tmp_video, fourcc, fps, (width, height))
+    log(f"Writer opened: {writer.isOpened()}")
 
     inpaint_flag = cv2.INPAINT_TELEA if inpaint_method == "telea" else cv2.INPAINT_NS
 
@@ -1268,7 +1263,7 @@ progress_callback=None,
                     # Build only after we have enough samples
                     if background_builder.count() >= 15:
                         background_roi = background_builder.build()
-            
+
                 remove_start = time.perf_counter()
                 out_frame = adaptive_remove_region(
                     frame=frame,
@@ -1301,10 +1296,44 @@ progress_callback=None,
                 if progress_every and frame_idx % progress_every == 0:
                     log(
                         f"    ...{frame_idx}/{total_frames} frames"
-    )
+                    )
 
     log("DEBUG: Finished writing frames")
     log("=" * 60)
+
+    cap.release()
+
+    # Finalize the output video before muxing audio
+    writer.release()
+    import subprocess
+    import os
+
+    log(f"Output exists: {os.path.exists(tmp_video)}")
+
+    if os.path.exists(tmp_video):
+        size = os.path.getsize(tmp_video)
+        log(f"Output size: {size} bytes")
+
+        probe = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-show_format",
+                "-show_streams",
+                str(tmp_video),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        log(f"TMP ffprobe return code: {probe.returncode}")
+        log(f"TMP ffprobe stdout:\n{probe.stdout}")
+        log(f"TMP ffprobe stderr:\n{probe.stderr}")
+    else:
+        log(f"Output video missing: {tmp_video}")
+        cv2.destroyAllWindows()
+        raise RuntimeError(f"Output video missing: {tmp_video}")
+
     log("PERFORMANCE PROFILE")
     log(f"Frames processed : {frame_idx}")
     log(f"Mask creation    : {total_mask_time:.2f} seconds")
@@ -1320,10 +1349,12 @@ progress_callback=None,
     log(f"Measured total   : {measured_total:.2f} seconds")
     log("=" * 60)
 
-    cap.release()
-    
+    sampled = (
+        max(1, frame_idx // sample_every + 1)
+        if (not auto_detect and not locked_position and not fully_auto)
+        else max(1, frame_idx)
+)
 
-    sampled = max(1, frame_idx // sample_every + 1) if (not auto_detect and not locked_position and not fully_auto) else max(1, frame_idx)
     detect_rate = matches_found / sampled
 
     report = {
@@ -1344,6 +1375,37 @@ progress_callback=None,
         return report
 
     log("DEBUG: writer.release() Starting audio mux")
+    import os
+    log(f"Writer released")
+
+    log(f"Output exists: {os.path.exists(tmp_video)}")
+
+    if os.path.exists(tmp_video):
+        size = os.path.getsize(tmp_video)
+        log(f"Output size: {size} bytes")
+
+        probe = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_format",
+                "-show_streams",
+                str(tmp_video),
+            ],
+            capture_output=True,
+            text=True,
+        )
+
+        log(f"TMP ffprobe return code: {probe.returncode}")
+        log(f"TMP ffprobe stdout:\n{probe.stdout}")
+        log(f"TMP ffprobe stderr:\n{probe.stderr}")
+
+        if size == 0:
+            raise RuntimeError("VideoWriter created a 0-byte output file.")
+    else:
+        raise RuntimeError(f"Output video not found: {tmp_video}")
+
     audio_status = mux_audio(
         input_path,
         tmp_video,
