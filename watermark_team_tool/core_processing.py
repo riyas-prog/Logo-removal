@@ -351,21 +351,56 @@ def mux_audio(original_path, silent_video_path, output_path):
 
     if result.returncode != 0:
 
-        output_path.unlink(
-            missing_ok=True
-        )
+        log("Primary audio mux failed.")
+        log("Retrying without audio...")
 
-        raise RuntimeError(
-            f"""
-            FFmpeg failed
+        output_path.unlink(missing_ok=True)
 
-            Return code: {result.returncode}
+        fallback_cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(silent_video_path),
 
-            STDOUT: {result.stdout}
+            "-c:v",
+            "libx264",
 
-            STDERR: {result.stderr}
-            """
-        )
+            "-preset",
+            "fast",
+            
+            "-crf",
+            "18",
+
+            "-pix_fmt",
+            "yuv420p",
+
+            "-movflags",
+            "+faststart",
+
+            str(output_path),
+    ]
+
+    fallback = run_ffmpeg(fallback_cmd)
+
+    if fallback.returncode == 0:
+
+        log("Fallback succeeded (video saved without audio).")
+
+        return "removed"
+    
+    output_path.unlink(missing_ok=True)
+
+    raise RuntimeError(
+        f"""
+Audio mux failed.
+
+Primary attempt:
+{result.stderr}
+
+Fallback attempt:
+{fallback.stderr}
+"""
+)
 
     # --------------------------------------------------
     # VERIFY OUTPUT EXISTS AND HAS REAL DATA
