@@ -177,6 +177,34 @@ def build_mask(frame_shape, top_left, size, padding):
 
     return mask, (x0, y0, x1, y1)
 
+# ==================================================
+# FFMPEG Helper
+# ==================================================
+
+def run_ffmpeg(cmd):
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+    )
+
+    log("=" * 80)
+    log("FFMPEG COMMAND")
+    log(" ".join(cmd))
+    log("=" * 80)
+    log(f"Return code: {result.returncode}")
+
+    if result.stdout.strip():
+        log("FFMPEG STDOUT")
+        log(result.stdout)
+        
+    if result.stderr.strip():
+        log("FFMPEG STDERR")
+        log(result.stderr)
+
+    log("=" * 80)
+
+    return result       
 
 def mux_audio(original_path, silent_video_path, output_path):
 
@@ -315,11 +343,7 @@ def mux_audio(original_path, silent_video_path, output_path):
     # RUN FFMPEG
     # --------------------------------------------------
 
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-    )
+    result = run_ffmpeg(cmd)
 
     # --------------------------------------------------
     # FFMPEG FAILURE
@@ -1065,7 +1089,7 @@ progress_callback=None,
 
     if USE_BACKGROUND_BUILDER:
         background_builder = BackgroundBuilder(max_frames=30)
-        
+
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video: {input_path}")
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
@@ -1286,6 +1310,7 @@ progress_callback=None,
 
         write_start = time.perf_counter()
         writer.write(out_frame)
+        total_write_time += time.perf_counter() - write_start
         frame_idx += 1
         # --------------------------------------------------
         # REPORT LIVE FRAME PROGRESS
