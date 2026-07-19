@@ -1061,6 +1061,11 @@ progress_callback=None,
 
     cap = cv2.VideoCapture(str(input_path))
 
+    background_builder = None
+
+    if USE_BACKGROUND_BUILDER:
+        background_builder = BackgroundBuilder(max_frames=30)
+        
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open video: {input_path}")
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
