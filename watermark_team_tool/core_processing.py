@@ -369,21 +369,18 @@ def mux_audio(original_path, silent_video_path, output_path, log=print):
             "+faststart",
 
             str(output_path),
-    ]
+         ]
 
-    fallback = run_ffmpeg(fallback_cmd, log)
+        fallback = run_ffmpeg(fallback_cmd, log)
 
-    if fallback.returncode == 0:
+        if fallback.returncode == 0:
+            log("Fallback succeeded (video saved without audio).")
+            return "removed"
+        
+        output_path.unlink(missing_ok=True)
 
-        log("Fallback succeeded (video saved without audio).")
-
-        return "removed"
-    
-    output_path.unlink(missing_ok=True)
-
-    raise RuntimeError(
-        f"""
-Audio mux failed.
+        raise RuntimeError(
+            f"""Audio mux failed.
 
 Primary attempt:
 {result.stderr}
@@ -391,8 +388,7 @@ Primary attempt:
 Fallback attempt:
 {fallback.stderr}
 """
-)
-
+        )
     # --------------------------------------------------
     # VERIFY OUTPUT EXISTS AND HAS REAL DATA
     # --------------------------------------------------
