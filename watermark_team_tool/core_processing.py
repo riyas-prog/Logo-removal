@@ -181,7 +181,7 @@ def build_mask(frame_shape, top_left, size, padding):
 # FFMPEG Helper
 # ==================================================
 
-def run_ffmpeg(cmd):
+def run_ffmpeg(cmd, log=print):
     result = subprocess.run(
         cmd,
         capture_output=True,
@@ -206,7 +206,7 @@ def run_ffmpeg(cmd):
 
     return result       
 
-def mux_audio(original_path, silent_video_path, output_path):
+def mux_audio(original_path, silent_video_path, output_path, log=print):
 
     original_path = Path(original_path)
     silent_video_path = Path(silent_video_path)
@@ -343,7 +343,7 @@ def mux_audio(original_path, silent_video_path, output_path):
     # RUN FFMPEG
     # --------------------------------------------------
 
-    result = run_ffmpeg(cmd)
+    result = run_ffmpeg(cmd, log)
 
     # --------------------------------------------------
     # FFMPEG FAILURE
@@ -380,7 +380,7 @@ def mux_audio(original_path, silent_video_path, output_path):
             str(output_path),
     ]
 
-    fallback = run_ffmpeg(fallback_cmd)
+    fallback = run_ffmpeg(fallback_cmd, log)
 
     if fallback.returncode == 0:
 
@@ -1475,6 +1475,7 @@ progress_callback=None,
         input_path,
         tmp_video,
         output_path,
+        log=log,
     )
     report["audio"] = audio_status
     log(f"DEBUG: Final MP4 validated successfully: {output_path}")
